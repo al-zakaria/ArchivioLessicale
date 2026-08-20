@@ -1,0 +1,5 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ArchivioLessicale.API/ArchivioLessicale.API.csproj" />
+  </Folder>
+</Solution>

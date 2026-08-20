@@ -1,0 +1,177 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
+using ArchivioLessicale.API.Data;
+using ArchivioLessicale.API.Models.DTOs;
+using ArchivioLessicale.API.Models.Entities;
+using ArchivioLessicale.API.Models.Options;
+using ArchivioLessicale.API.Services.Interfaces;
+using CSharpFunctionalExtensions;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
+
+namespace ArchivioLessicale.API.Services.Implementations;
+
+public class TokenService(
+    AuthDbContext dbContext,
+    UserManager<ApplicationUser> userManager,
+    IOptions<JwtOptions> options) : ITokenService
+{
+    public Task<string> GenerateAccessToken(ApplicationUser user)
+    {
+        var privateKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(options.Value.SecretKey));
+        var creds = new SigningCredentials(privateKey, SecurityAlgorithms.HmacSha256);
+
+        var authClaims = GenerateAccessTokenClaims(user);
+
+        var token = new JwtSecurityToken(
+            issuer: options.Value.Issuer,
+            audience: options.Value.Audience,
+            expires: DateTime.UtcNow.AddMinutes(options.Value.AccessTokenExperitaionMinutes),
+            claims: authClaims,
+            signingCredentials: creds
+        );
+
+        var accessToken = new JwtSecurityTokenHandler().WriteToken(token);
+
+        return Task.FromResult(accessToken);
+    }
+
+    public async Task<string> GenerateRefreshToken(Guid userId)
+    {
+        var (refreshToken, rawToken) = CreateRefreshToken(userId);
+
+        await dbContext.RefreshTokens.AddAsync(refreshToken);
+        await dbContext.SaveChangesAsync();
+
+        return rawToken;
+    }
+
+    public async Task<Result<LoginResponse>> RefreshTokens(string rawTokenFromUser)
+    {
+        var hashedTokenFromUser = HashRawRefreshToken(rawTokenFromUser);
+
+        var storedToken = await dbContext.RefreshTokens
+            .FirstOrDefaultAsync(token => token.TokenHash == hashedTokenFromUser);
+
+        if (storedToken is null)
+            return Result.Failure<LoginResponse>("There is no refresh token for this user");
+
+        var relatedUser = await userManager.FindByIdAsync(storedToken.UserId.ToString());
+
+        if (relatedUser is null)
+            return Result.Failure<LoginResponse>($"There is no related user with token with token id: {storedToken.UserId}");
+
+        if (storedToken.RevokedAt is not null)
+        {
+            await RevokeAllTokens(relatedUser.Id); // TODO: че за бред сука?? почему при обновлении токена должны отзываться ВСЕ refresh токены? а если у пользователя несколько устройств? ты че идиот? добавь в сузность IP и само устройство и отзывай учитывая его, идиот 
+            return Result.Failure<LoginResponse>($"Refresh token with id {storedToken.TokenId} was stollen.");
+        }
+
+        if (storedToken.ExpiresAt < DateTime.UtcNow)
+            return Result.Failure<LoginResponse>("This refresh token has expired.");
+
+        var accessToken = await GenerateAccessToken(relatedUser); 
+
+        var (newRefreshToken, newRawRefreshToken) = CreateRefreshToken(relatedUser.Id);
+
+        storedToken.RevokedAt = DateTime.UtcNow;
+        storedToken.ReplacedByTokenId = newRefreshToken.TokenId; 
+
+        dbContext.RefreshTokens.Add(newRefreshToken);
+        await dbContext.SaveChangesAsync();
+
+        return new LoginResponse(accessToken, newRawRefreshToken);
+    }
+
+    public async Task RevokeAllJwtTokens()
+    {
+        
+    }
+
+    public async Task RevokeJwtToken()
+    {
+        
+    }
+
+    public async Task RevokeAllTokens(Guid userId)
+    {
+        var tokens = await dbContext.RefreshTokens
+            .Where(token => token.UserId == userId && token.RevokedAt == null)
+            .ToListAsync(); 
+
+        foreach (var token in tokens)
+            token.RevokedAt = DateTime.UtcNow;
+
+        await dbContext.SaveChangesAsync();
+    }
+
+    public async Task PurgeExpiredTokens()
+    {
+        var staleTokens = await dbContext.RefreshTokens
+            .Where(token => 
+                (token.RevokedAt != null && token.RevokedAt < options.Value.CutoffDate) ||
+                (token.RevokedAt == null && token.ExpiresAt < DateTime.UtcNow))
+            .ToListAsync();
+
+        dbContext.RefreshTokens.RemoveRange(staleTokens);
+        await dbContext.SaveChangesAsync();
+    }
+    
+    public async Task<Result<string>> GenerateEmailConfirmationToken(Guid userId)
+    {
+        var user = await userManager.FindByIdAsync(userId.ToString());
+        if (user is null)
+            return Result.Failure<string>("There is no user with such id.");
+
+        var emailConfirmationToken = await userManager.GenerateEmailConfirmationTokenAsync(user);
+        var encodedToken = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(emailConfirmationToken));
+
+        return encodedToken!;
+    }
+
+    public async Task<Result<string>> GeneratePendingEmailChangeToken(Guid userId)
+    {
+        throw new NotImplementedException();
+    }
+
+    public async Task<Result<string>> GenerateEmailCancellationChangeToken(Guid userId)
+    {
+        throw new NotImplementedException();
+    }
+
+    private List<Claim> GenerateAccessTokenClaims(ApplicationUser user)
+    {
+        return
+        [
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+            new(JwtRegisteredClaimNames.Email, user.Email!),
+            new("security_stamp", user.SecurityStamp!)
+        ];
+    }
+
+    private (RefreshToken RefreshTokenEntity, string RawRefreshToken) CreateRefreshToken(Guid userId)
+    {
+        var rawToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
+        var hashedRefreshToken = HashRawRefreshToken(rawToken);
+
+        var tokenEntity =  new RefreshToken
+        {
+            TokenId = Guid.NewGuid(),
+            TokenHash = hashedRefreshToken,
+            UserId = userId,
+            CreatedAt = DateTime.UtcNow,
+            ExpiresAt = DateTime.UtcNow.AddDays(30),
+        };
+
+        return (tokenEntity, rawToken);
+    }
+
+    private string HashRawRefreshToken(string rawRefreshToken)
+        => Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(rawRefreshToken)));
+}

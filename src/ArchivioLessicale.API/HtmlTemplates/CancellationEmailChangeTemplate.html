@@ -1,0 +1,5 @@
+{{~ subject = "Somebody request changing email in your account." ~}}
+<h3>Hello {{ user_name }}</h3>
+<p>Someone has requested to change the email address associated with your account on our Archivio Lessicale service.
+The email address requested for the change is: {{ new_email }}
+If you did not make this request, please click the link below (it is valid for exactly one week from the time it was sent). <a href="{{ cancellation_link }}">link</a>.</p>
