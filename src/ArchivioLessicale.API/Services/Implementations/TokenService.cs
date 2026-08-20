@@ -68,7 +68,7 @@ public class TokenService(
 
         if (storedToken.RevokedAt is not null)
         {
-            await RevokeAllTokens(relatedUser.Id); // TODO: че за бред сука?? почему при обновлении токена должны отзываться ВСЕ refresh токены? а если у пользователя несколько устройств? ты че идиот? добавь в сузность IP и само устройство и отзывай учитывая его, идиот 
+            await RevokeAllTokens(relatedUser.Id); 
             return Result.Failure<LoginResponse>($"Refresh token with id {storedToken.TokenId} was stollen.");
         }
 
@@ -90,12 +90,12 @@ public class TokenService(
 
     public async Task RevokeAllJwtTokens()
     {
-        
+        throw new NotImplementedException();
     }
 
     public async Task RevokeJwtToken()
     {
-        
+        throw new NotImplementedException();
     }
 
     public async Task RevokeAllTokens(Guid userId)

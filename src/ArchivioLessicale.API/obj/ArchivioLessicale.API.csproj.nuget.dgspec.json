@@ -1,20 +1,20 @@
 {
   "format": 1,
   "restore": {
-    "/Users/segnor_zaccaria/Sviluppo/Sandbox/ArchivioLessicale/src/ArchivioLessicale.API/ArchivioLessicale.API.csproj": {}
+    "C:\\Users\\Signor Alim Zaccaria\\source\\ArchivioLessicale\\src\\ArchivioLessicale.API\\ArchivioLessicale.API.csproj": {}
   },
   "projects": {
-    "/Users/segnor_zaccaria/Sviluppo/Sandbox/ArchivioLessicale/src/ArchivioLessicale.API/ArchivioLessicale.API.csproj": {
+    "C:\\Users\\Signor Alim Zaccaria\\source\\ArchivioLessicale\\src\\ArchivioLessicale.API\\ArchivioLessicale.API.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/Users/segnor_zaccaria/Sviluppo/Sandbox/ArchivioLessicale/src/ArchivioLessicale.API/ArchivioLessicale.API.csproj",
+        "projectUniqueName": "C:\\Users\\Signor Alim Zaccaria\\source\\ArchivioLessicale\\src\\ArchivioLessicale.API\\ArchivioLessicale.API.csproj",
         "projectName": "ArchivioLessicale.API",
-        "projectPath": "/Users/segnor_zaccaria/Sviluppo/Sandbox/ArchivioLessicale/src/ArchivioLessicale.API/ArchivioLessicale.API.csproj",
-        "packagesPath": "/Users/segnor_zaccaria/.nuget/packages/",
-        "outputPath": "/Users/segnor_zaccaria/Sviluppo/Sandbox/ArchivioLessicale/src/ArchivioLessicale.API/obj/",
+        "projectPath": "C:\\Users\\Signor Alim Zaccaria\\source\\ArchivioLessicale\\src\\ArchivioLessicale.API\\ArchivioLessicale.API.csproj",
+        "packagesPath": "C:\\Users\\Signor Alim Zaccaria\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\Signor Alim Zaccaria\\source\\ArchivioLessicale\\src\\ArchivioLessicale.API\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
-          "/Users/segnor_zaccaria/.nuget/NuGet/NuGet.Config"
+          "C:\\Users\\Signor Alim Zaccaria\\AppData\\Roaming\\NuGet\\NuGet.Config"
         ],
         "originalTargetFrameworks": [
           "net10.0"
@@ -39,7 +39,7 @@
           "auditLevel": "low",
           "auditMode": "all"
         },
-        "SdkAnalysisLevel": "10.0.300"
+        "SdkAnalysisLevel": "11.0.100"
       },
       "frameworks": {
         "net10.0": {
@@ -106,6 +106,24 @@
           ],
           "assetTargetFallback": true,
           "warn": true,
+          "downloadDependencies": [
+            {
+              "name": "Microsoft.AspNetCore.App.Ref",
+              "version": "[10.0.10, 10.0.10]"
+            },
+            {
+              "name": "Microsoft.NETCore.App.Host.win-x64",
+              "version": "[10.0.10, 10.0.10]"
+            },
+            {
+              "name": "Microsoft.NETCore.App.Ref",
+              "version": "[10.0.10, 10.0.10]"
+            },
+            {
+              "name": "Microsoft.WindowsDesktop.App.Ref",
+              "version": "[10.0.10, 10.0.10]"
+            }
+          ],
           "frameworkReferences": {
             "Microsoft.AspNetCore.App": {
               "privateAssets": "none"
@@ -114,7 +132,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/10.0.301/PortableRuntimeIdentifierGraph.json",
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\11.0.100-preview.7.26381.103/PortableRuntimeIdentifierGraph.json",
           "packagesToPrune": {
             "Microsoft.AspNetCore": "(,10.0.32767]",
             "Microsoft.AspNetCore.Antiforgery": "(,10.0.32767]",

@@ -5,7 +5,6 @@ using ArchivioLessicale.API.Models.Options;
 using MailKit.Security;
 using Microsoft.Extensions.Options;
 using ArchivioLessicale.API.Models.DTOs;
-using Org.BouncyCastle.Ocsp;
 
 namespace ArchivioLessicale.API.Services.Implementations;
 
@@ -18,12 +17,8 @@ public class EmailService(
     {
         var template = await emailTemplatesService.GenerateEmailConfirmationTemplate(request.RecipientName, 
             confirmationLink);
-
-        request.Subject = template.Subject;
-        request.HtmlBody = template.HtmlBody;
-        request.TextBody = template.TextBody;
-
-        await SendEmail(request);
+            
+        await SendEmail(request, template);
     }
 
     public async Task SendPendingEmailChange(SendEmailRequest request, string pendingEmailChangeLink)
@@ -31,11 +26,7 @@ public class EmailService(
         var template = await emailTemplatesService.GeneratePendingEmailChangingTemplate(request.RecipientEmail, 
             pendingEmailChangeLink);
 
-        request.Subject = template.Subject;
-        request.HtmlBody = template.HtmlBody;
-        request.TextBody = template.TextBody;
-
-        await SendEmail(request);
+        await SendEmail(request, template);
     }
 
     public async Task SendEmailCancellationChange(SendEmailRequest request, 
@@ -44,16 +35,16 @@ public class EmailService(
         var template = await emailTemplatesService.GenerateEmailCancellationChangingTemplate(request.RecipientEmail, 
             request.NewRecipientEmail!, cancellationEmailChangeLink);
         
-        request.Subject = template.Subject;
-        request.HtmlBody = template.HtmlBody;
-        request.TextBody = template.TextBody;
-
-        await SendEmail(request);
+        await SendEmail(request, template);
     }
 
-    private async Task SendEmail(SendEmailRequest request)
+    private async Task SendEmail(SendEmailRequest request, EmailTemplateResult templateResult)
     {
         var emailMessage = GenerateEmail(request);
+
+        request.Subject = templateResult.Subject;
+        request.HtmlBody = templateResult.HtmlBody;
+        request.TextBody = templateResult.TextBody;
 
         await SendGeneratedEmail(emailMessage);
     }

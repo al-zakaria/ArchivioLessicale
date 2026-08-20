@@ -116,6 +116,12 @@ public class AuthService(
         return Result.Success();
     }
 
+    public async Task RequestEmailChange(Guid userId, string newEmail, string password)
+    {
+        var applicationUser = await userManager.FindByIdAsync(userId.ToString());
+         
+    }
+
     public async Task<Result<string>> GenerateChangeEmailToken(Guid userId, string newEmail, string password)
     {
         var applicationUser = await userManager.FindByIdAsync(userId.ToString());
@@ -154,6 +160,11 @@ public class AuthService(
         // await emailService.SendEmailCancellationChange();
 
         return encodedToken;
+    }
+
+    public async Task<Result<string>> GenerateCancellationEmailChangeToken(Guid userId, string newEmail)
+    {
+        throw new NotImplementedException();
     }
 
     public async Task<Result<LoginResponse>> ChangeEmail(Guid userId, string newEmail, string token)

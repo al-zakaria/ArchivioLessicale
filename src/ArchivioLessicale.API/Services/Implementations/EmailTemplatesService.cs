@@ -12,16 +12,12 @@ public class EmailTemplatesService(IWebHostEnvironment environment) : IEmailTemp
         string confirmationLink)
     {
         var templateName = EmailTemplatesNames.EmailConfirmationTemplate;
-        
-        var scriptObject = new ScriptObject();
 
-        scriptObject.Import(new
+        return await ParseTemplate(templateName, new
         {
             UserName = userName,
             ConfirmationLink = confirmationLink
         });
-
-        return await ParseTemplate(templateName, scriptObject);
     }
 
     public async Task<EmailTemplateResult> GeneratePendingEmailChangingTemplate(string userName, 
@@ -29,15 +25,11 @@ public class EmailTemplatesService(IWebHostEnvironment environment) : IEmailTemp
     {
         var pendingEmailChangeTemplate = EmailTemplatesNames.PendingEmailChangeTemplate;
 
-        var scriptObject = new ScriptObject();
-
-        scriptObject.Import(new
+        return await ParseTemplate(pendingEmailChangeTemplate, new
         {
             UserName = userName,
             ConfirmationEmailChangeLink = confirmationEmailChangeLink
         });
-
-        return await ParseTemplate(pendingEmailChangeTemplate, scriptObject);
     }
 
     public async Task<EmailTemplateResult> GenerateEmailCancellationChangingTemplate(string userName, 
@@ -45,32 +37,31 @@ public class EmailTemplatesService(IWebHostEnvironment environment) : IEmailTemp
     {
         var cancellationEmailChangeTemplate = EmailTemplatesNames.CancellationEmailChangeTemplate;
 
-        var scriptObject = new ScriptObject();
-
-        scriptObject.Import(new
+        return await ParseTemplate(cancellationEmailChangeTemplate, new
         {
             UserName = userName,
             NewEmail = newEmail,
             CancellationLink = cancellationEmailChangeLink
         });
-
-        return await ParseTemplate(cancellationEmailChangeTemplate, scriptObject);
     }
 
-    private async Task<EmailTemplateResult> ParseTemplate(string templateName, ScriptObject keyValues)
+    private async Task<EmailTemplateResult> ParseTemplate(string templateName, object scriptObjectImport)
     {
         var template = await GetTemplate(templateName);
         var parsedTemplate = Template.Parse(template);
 
         var context = new TemplateContext();
+        var scriptObject = new ScriptObject();
 
-        context.PushGlobal(keyValues);
+        scriptObject.Import(scriptObjectImport);
+
+        context.PushGlobal(scriptObject);
 
         var htmlBody = await parsedTemplate.RenderAsync(context);
 
         var textBody = Html2Text.HtmlHelper.ToPlainText(htmlBody);
 
-        var subject = keyValues["subject"]?.ToString() ?? string.Empty;
+        var subject = scriptObject["subject"]?.ToString() ?? string.Empty;
 
         return new EmailTemplateResult(subject, htmlBody, textBody);
     }
