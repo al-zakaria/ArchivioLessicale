@@ -14,6 +14,23 @@ public class LinkService(IConfiguration configuration) : ILinkService
         });
     }
 
+    public string GeneratePendingEmailChangeLink(Guid userId, string encodedPendingEmailChangeToken)
+    {
+        return GenerateLink("auth/change-email", new Dictionary<string, string?>
+        {
+            { "userId", userId.ToString() },
+            { "token", encodedPendingEmailChangeToken }
+        });
+    }
+
+    public string GenerateCancellationEmailChangeToken(string encodedCancellationEmailChangeToken)
+    {
+        return GenerateLink("auth/cancell-email-change", new Dictionary<string, string?>
+        {
+            { "token", encodedCancellationEmailChangeToken }
+        });
+    }
+
     private string GenerateLink(string path, Dictionary<string, string?> queryParams)
     {
         var baseUrl = configuration.GetValue<string>("DeepLink:BaseAddress")?.TrimEnd('/');

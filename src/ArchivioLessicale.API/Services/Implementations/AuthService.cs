@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Identity;
 using CSharpFunctionalExtensions;
 using System.Text;
 using Microsoft.AspNetCore.WebUtilities;
-using Microsoft.EntityFrameworkCore;
+using Scriban.Parsing;
 
 namespace ArchivioLessicale.API.Services.Implementations;
 
@@ -15,6 +15,7 @@ public class AuthService(
     ITokenService tokenService,
     IEmailService emailService,
     ILinkService linkService,
+    ICurrentUser currentUser,
     ApplicationDbContext context,
     UserManager<ApplicationUser> userManager) : IAuthService
 {
@@ -54,8 +55,8 @@ public class AuthService(
 
         await transaction.CommitAsync();
 
-        var encodedConfrimationEmailToken = await tokenService.GenerateEmailConfirmationToken(applicationUser.Id);
-        var confirmationLink = linkService.GenerateEmailConfirmationLink(applicationUser.Id, encodedConfrimationEmailToken.Value);
+        var encodedConfirmationEmailToken = await tokenService.GenerateEmailConfirmationToken(applicationUser.Id);
+        var confirmationLink = linkService.GenerateEmailConfirmationLink(applicationUser.Id, encodedConfirmationEmailToken.Value);
         
         var emailRequest = new SendEmailRequest
         {
@@ -65,16 +66,13 @@ public class AuthService(
 
         await emailService.SendEmailConfirmation(emailRequest, confirmationLink);
 
-        var tokens = await GenerateTokens(applicationUser);
+        var tokens = await GenerateAuthTokens(applicationUser);
 
         return tokens;
     }
 
     public async Task<Result<LoginResponse>> Login(LoginRequest request)
     {
-        if (request == null)
-            return Result.Failure<LoginResponse>("Login request object is null.");
-
         var user = await userManager.FindByEmailAsync(request.Email);
         if (user is null)
             return Result.Failure<LoginResponse>("Wrong email or password.");
@@ -93,9 +91,15 @@ public class AuthService(
 
         await userManager.ResetAccessFailedCountAsync(user);
 
-        var tokens = await GenerateTokens(user);
+        var tokens = await GenerateAuthTokens(user);
 
         return tokens;
+    }
+
+    public async Task RefreshSession(string incomingRefreshToken)
+    {
+        await tokenService.ExchangeRefreshToken(incomingRefreshToken);
+        
     }
 
     public async Task<Result> ConfirmEmail(Guid userId, string encodedToken)
@@ -116,18 +120,11 @@ public class AuthService(
         return Result.Success();
     }
 
-    public async Task RequestEmailChange(Guid userId, string newEmail, string password)
+    public async Task<Result<string>> RequestChangeEmail(Guid userId, string newEmail, string password)
     {
         var applicationUser = await userManager.FindByIdAsync(userId.ToString());
-         
-    }
 
-    public async Task<Result<string>> GenerateChangeEmailToken(Guid userId, string newEmail, string password)
-    {
-        var applicationUser = await userManager.FindByIdAsync(userId.ToString());
-        var businessUser = await context.Users.FirstOrDefaultAsync(user => user.Id == userId);
-
-        if (applicationUser is null || businessUser is null)
+        if (applicationUser is null)
             return Result.Failure<string>("There is not user with such id.");
 
         if (!await userManager.CheckPasswordAsync(applicationUser, password))
@@ -139,32 +136,14 @@ public class AuthService(
         var isEmailAlreadyExists = await userManager.FindByEmailAsync(newEmail);
         if (isEmailAlreadyExists != null)
             return Result.Failure<string>("User with this email already exists.");
-        
-        var token = await userManager.GenerateChangeEmailTokenAsync(applicationUser, newEmail);
-        var encodedToken = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
+    
+        var pendingEmailChangeToken = await GeneratePendingEmailChangeToken(applicationUser, newEmail);
+        var cancellationEmailChangeToken = await tokenService.GenerateCancellationEmailChangeToken(applicationUser.Id);
 
-        // var sendPendingEmailChangeRequest = new SendEmailRequest
-        // {
-        //     RecipientName = businessUser.FirstName!,
-        //     RecipientEmail = newEmail,
-        // };
+        var changeEmailRequest = new ChangeEmailRequest(applicationUser, newEmail, pendingEmailChangeToken, cancellationEmailChangeToken);
+        await SendEmailChangeRequestNotifications(changeEmailRequest);
 
-        // var sendEmailCancellationChangeRequest = new SendEmailRequest
-        // {
-        //     RecipientName = businessUser.FirstName!,
-        //     RecipientEmail = applicationUser.Email!,
-        //     NewRecipientEmail = newEmail
-        // };
-
-        // await emailService.SendPendingEmailChange(sendPendingEmailChangeRequest, encodedToken);
-        // await emailService.SendEmailCancellationChange();
-
-        return encodedToken;
-    }
-
-    public async Task<Result<string>> GenerateCancellationEmailChangeToken(Guid userId, string newEmail)
-    {
-        throw new NotImplementedException();
+        return pendingEmailChangeToken;
     }
 
     public async Task<Result<LoginResponse>> ChangeEmail(Guid userId, string newEmail, string token)
@@ -181,7 +160,7 @@ public class AuthService(
 
         await tokenService.RevokeAllTokens(user.Id);
 
-        var tokens = await GenerateTokens(user);
+        var tokens = await GenerateAuthTokens(user);
 
         return tokens;
     }
@@ -208,11 +187,60 @@ public class AuthService(
         throw new NotImplementedException();
     }
 
-    private async Task<LoginResponse> GenerateTokens(ApplicationUser user)
+    private async Task<LoginResponse> GenerateAuthTokens(ApplicationUser user)
     {
         var accessToken = await tokenService.GenerateAccessToken(user);
         var refreshToken = await tokenService.GenerateRefreshToken(user.Id);
 
         return new LoginResponse(accessToken, refreshToken);
     }
+
+    private async Task SendEmailChangeRequestNotifications(ChangeEmailRequest request)
+    {
+        var (pendingEmailChangeRequest, emailCancellationChangeRequest) = CreateNotificationEmailRequests(request.User, request.NewEmail);  
+
+        var pendingEmailChangeLink = linkService.GeneratePendingEmailChangeLink(request.User.Id, request.PendingEmailChangeToken);
+        var cancellationEmailChangeLink = linkService.GenerateCancellationEmailChangeToken(request.CancellationEmailChangeToken);
+
+        await emailService.SendPendingEmailChange(pendingEmailChangeRequest, pendingEmailChangeLink);
+        await emailService.SendEmailCancellationChange(emailCancellationChangeRequest, cancellationEmailChangeLink);
+    }
+
+    private async Task<string> GenerateEmailConfirmationToken(ApplicationUser applicationUser)
+    {
+        throw new NotImplementedException();
+    }
+
+    private async Task<string> GeneratePendingEmailChangeToken(ApplicationUser applicationUser, string newEmail)
+    {
+        var token = await userManager.GenerateChangeEmailTokenAsync(applicationUser, newEmail);
+        var encodedToken = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
+
+        return encodedToken;
+    }
+
+    private (SendEmailRequest PendingEmailChangeRequest, SendEmailRequest EmailCancellationChangeRequest)
+        CreateNotificationEmailRequests(ApplicationUser applicationUser, string newEmail)
+    {
+        var pendingEmailChangeRequest = new SendEmailRequest
+        {
+            RecipientName = currentUser.UserName!,
+            RecipientEmail = newEmail
+        };
+
+        var emailCancellationChangeRequest = new SendEmailRequest
+        {
+            RecipientName = currentUser.UserName!,
+            RecipientEmail = applicationUser.Email!, 
+            NewRecipientEmail = newEmail
+        };
+
+        return (pendingEmailChangeRequest, emailCancellationChangeRequest);
+    }
+
+    private readonly record struct ChangeEmailRequest(
+        ApplicationUser User, 
+        string NewEmail, 
+        string PendingEmailChangeToken, 
+        string CancellationEmailChangeToken);
 }

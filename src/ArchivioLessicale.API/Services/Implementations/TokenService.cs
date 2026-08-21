@@ -21,7 +21,7 @@ public class TokenService(
     UserManager<ApplicationUser> userManager,
     IOptions<JwtOptions> options) : ITokenService
 {
-    public Task<string> GenerateAccessToken(ApplicationUser user)
+    public string GenerateAccessToken(ApplicationUser user)
     {
         var privateKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(options.Value.SecretKey));
         var creds = new SigningCredentials(privateKey, SecurityAlgorithms.HmacSha256);
@@ -38,7 +38,7 @@ public class TokenService(
 
         var accessToken = new JwtSecurityTokenHandler().WriteToken(token);
 
-        return Task.FromResult(accessToken);
+        return accessToken;
     }
 
     public async Task<string> GenerateRefreshToken(Guid userId)
@@ -51,41 +51,31 @@ public class TokenService(
         return rawToken;
     }
 
-    public async Task<Result<LoginResponse>> RefreshTokens(string rawTokenFromUser)
+    public async Task<Result<string>> ExchangeRefreshToken(string incomingRawToken)
     {
-        var hashedTokenFromUser = HashRawRefreshToken(rawTokenFromUser);
+        var hashedTokenFromUser = HashRawRefreshToken(incomingRawToken);
 
         var storedToken = await dbContext.RefreshTokens
             .FirstOrDefaultAsync(token => token.TokenHash == hashedTokenFromUser);
 
         if (storedToken is null)
-            return Result.Failure<LoginResponse>("There is no refresh token for this user");
+            return Result.Failure<string>("There is no refresh token for this user");
 
-        var relatedUser = await userManager.FindByIdAsync(storedToken.UserId.ToString());
+        var validationResult = await ValidateIncomingToken(storedToken);
+        if (validationResult.IsFailure)
+            return Result.Failure<string>("");
 
-        if (relatedUser is null)
-            return Result.Failure<LoginResponse>($"There is no related user with token with token id: {storedToken.UserId}");
+        return await RotateRefreshToken(storedToken);
+    }
 
-        if (storedToken.RevokedAt is not null)
-        {
-            await RevokeAllTokens(relatedUser.Id); 
-            return Result.Failure<LoginResponse>($"Refresh token with id {storedToken.TokenId} was stollen.");
-        }
+    public async Task<Result<string>> ExchangeAccessToken(ApplicationUser user, Guid TokenId)
+    {
+        // So i need make the previous JWT token invalid, i think i'll make it using the Id of old JWT token
+        // i want push it to Redis/DB like token of the invalid JWT token and 
+        // auth middleware will check all incoming jwt tokens that their id not equals to the invalid token id
+        
 
-        if (storedToken.ExpiresAt < DateTime.UtcNow)
-            return Result.Failure<LoginResponse>("This refresh token has expired.");
-
-        var accessToken = await GenerateAccessToken(relatedUser); 
-
-        var (newRefreshToken, newRawRefreshToken) = CreateRefreshToken(relatedUser.Id);
-
-        storedToken.RevokedAt = DateTime.UtcNow;
-        storedToken.ReplacedByTokenId = newRefreshToken.TokenId; 
-
-        dbContext.RefreshTokens.Add(newRefreshToken);
-        await dbContext.SaveChangesAsync();
-
-        return new LoginResponse(accessToken, newRawRefreshToken);
+        throw new NotImplementedException();
     }
 
     public async Task RevokeAllJwtTokens()
@@ -131,7 +121,7 @@ public class TokenService(
         var emailConfirmationToken = await userManager.GenerateEmailConfirmationTokenAsync(user);
         var encodedToken = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(emailConfirmationToken));
 
-        return encodedToken!;
+        return encodedToken;
     }
 
     public async Task<Result<string>> GeneratePendingEmailChangeToken(Guid userId)
@@ -139,7 +129,7 @@ public class TokenService(
         throw new NotImplementedException();
     }
 
-    public async Task<Result<string>> GenerateEmailCancellationChangeToken(Guid userId)
+    public async Task<string> GenerateCancellationEmailChangeToken(Guid userId)
     {
         throw new NotImplementedException();
     }
@@ -151,6 +141,7 @@ public class TokenService(
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new(JwtRegisteredClaimNames.Email, user.Email!),
+            new(JwtRegisteredClaimNames.Nickname, user.UserName!),
             new("security_stamp", user.SecurityStamp!)
         ];
     }
@@ -174,4 +165,36 @@ public class TokenService(
 
     private string HashRawRefreshToken(string rawRefreshToken)
         => Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(rawRefreshToken)));
+
+    private async Task<Result> ValidateIncomingToken(RefreshToken incomingToken)
+    {
+        if (incomingToken.RevokedAt is not null)
+        {
+            await RevokeAllTokens(incomingToken.UserId); 
+            return Result.Failure<LoginResponse>($"Refresh token with id {incomingToken.TokenId} was stollen.");
+        }
+
+        if (incomingToken.ExpiresAt < DateTime.UtcNow)
+            return Result.Failure<LoginResponse>("This refresh token has expired.");
+
+        return Result.Success();
+    }
+
+    private async Task<string> RotateRefreshToken(RefreshToken oldToken)
+    {
+        var (refreshToken, rawToken) = CreateRefreshToken(oldToken.UserId);
+
+        LinkRefreshTokens(oldToken, refreshToken);
+
+        await dbContext.RefreshTokens.AddAsync(refreshToken);
+        await dbContext.SaveChangesAsync();
+
+        return rawToken;
+    }
+
+    private void LinkRefreshTokens(RefreshToken oldToken, RefreshToken newToken)
+    {
+        oldToken.RevokedAt = DateTime.UtcNow;
+        oldToken.ReplacedByTokenId = newToken.TokenId;
+    }
 }

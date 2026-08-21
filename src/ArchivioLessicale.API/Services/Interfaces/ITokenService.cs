@@ -6,10 +6,11 @@ namespace ArchivioLessicale.API.Services.Interfaces;
 
 public interface ITokenService
 {
-    Task<string> GenerateAccessToken(ApplicationUser user);
+    string GenerateAccessToken(ApplicationUser user);
     Task<string> GenerateRefreshToken(Guid userId);
     Task<Result<string>> GenerateEmailConfirmationToken(Guid userId);
-    Task<Result<LoginResponse>> RefreshTokens(string rawTokenFromUser);
+    Task<string> GenerateCancellationEmailChangeToken(Guid userId);
+    Task<Result<string>> ExchangeRefreshToken(string incomingRawToken);
     Task RevokeAllTokens(Guid userId);
     Task PurgeExpiredTokens();
 }
