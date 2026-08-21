@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ArchivioLessicale.API")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+87e7566b6c699f1aeb8e77c169bace13b7d4e64b")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+591b8899184afd3f38cc7d0bac6ea1c7a488529a")]
 [assembly: System.Reflection.AssemblyProductAttribute("ArchivioLessicale.API")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ArchivioLessicale.API")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

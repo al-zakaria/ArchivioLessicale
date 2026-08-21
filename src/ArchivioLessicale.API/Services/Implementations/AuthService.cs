@@ -222,7 +222,7 @@ public class AuthService(
     private (SendEmailRequest PendingEmailChangeRequest, SendEmailRequest EmailCancellationChangeRequest)
         CreateNotificationEmailRequests(ApplicationUser applicationUser, string newEmail)
     {
-        var pendingEmailChangeRequest = new SendEmailRequest
+        var pendingEmailChangeRequest = new SendEmailRequest 
         {
             RecipientName = currentUser.UserName!,
             RecipientEmail = newEmail
