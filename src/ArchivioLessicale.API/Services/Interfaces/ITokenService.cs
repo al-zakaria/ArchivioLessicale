@@ -1,5 +1,4 @@
 using ArchivioLessicale.API.Models.Entities;
-using ArchivioLessicale.API.Models.DTOs;
 using CSharpFunctionalExtensions;
 
 namespace ArchivioLessicale.API.Services.Interfaces;
@@ -10,7 +9,7 @@ public interface ITokenService
     Task<string> GenerateRefreshToken(Guid userId);
     Task<Result<string>> GenerateEmailConfirmationToken(Guid userId);
     Task<string> GenerateCancellationEmailChangeToken(Guid userId);
-    Task<Result<string>> ExchangeRefreshToken(string incomingRawToken);
+    Task<Result<(Guid UserId, string RawToken)>> ExchangeRefreshToken(string incomingRawToken);
     Task RevokeAllTokens(Guid userId);
     Task PurgeExpiredTokens();
 }

@@ -51,7 +51,8 @@ public class TokenService(
         return rawToken;
     }
 
-    public async Task<Result<string>> ExchangeRefreshToken(string incomingRawToken)
+    public async Task<Result<(Guid UserId, string RawToken)>> ExchangeRefreshToken(
+        string incomingRawToken)
     {
         var hashedTokenFromUser = HashRawRefreshToken(incomingRawToken);
 
@@ -59,11 +60,11 @@ public class TokenService(
             .FirstOrDefaultAsync(token => token.TokenHash == hashedTokenFromUser);
 
         if (storedToken is null)
-            return Result.Failure<string>("There is no refresh token for this user");
+            return Result.Failure<(Guid, string)>("There is no refresh token for this user");
 
         var validationResult = await ValidateIncomingToken(storedToken);
         if (validationResult.IsFailure)
-            return Result.Failure<string>("");
+            return Result.Failure<(Guid, string)>("");
 
         return await RotateRefreshToken(storedToken);
     }
@@ -171,16 +172,16 @@ public class TokenService(
         if (incomingToken.RevokedAt is not null)
         {
             await RevokeAllTokens(incomingToken.UserId); 
-            return Result.Failure<LoginResponse>($"Refresh token with id {incomingToken.TokenId} was stollen.");
+            return Result.Failure($"Refresh token with id {incomingToken.TokenId} was stollen.");
         }
 
         if (incomingToken.ExpiresAt < DateTime.UtcNow)
-            return Result.Failure<LoginResponse>("This refresh token has expired.");
+            return Result.Failure("This refresh token has expired.");
 
         return Result.Success();
     }
 
-    private async Task<string> RotateRefreshToken(RefreshToken oldToken)
+    private async Task<(Guid UserId, string RawToken)> RotateRefreshToken(RefreshToken oldToken)
     {
         var (refreshToken, rawToken) = CreateRefreshToken(oldToken.UserId);
 
@@ -189,7 +190,7 @@ public class TokenService(
         await dbContext.RefreshTokens.AddAsync(refreshToken);
         await dbContext.SaveChangesAsync();
 
-        return rawToken;
+        return (refreshToken.UserId, rawToken);
     }
 
     private void LinkRefreshTokens(RefreshToken oldToken, RefreshToken newToken)
