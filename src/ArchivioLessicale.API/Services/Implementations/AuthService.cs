@@ -7,7 +7,6 @@ using Microsoft.AspNetCore.Identity;
 using CSharpFunctionalExtensions;
 using System.Text;
 using Microsoft.AspNetCore.WebUtilities;
-using Scriban.Parsing;
 
 namespace ArchivioLessicale.API.Services.Implementations;
 
@@ -96,10 +95,21 @@ public class AuthService(
         return tokens;
     }
 
-    public async Task RefreshSession(string incomingRefreshToken)
+    public async Task<LoginResponse> RefreshSession(string incomingRefreshToken)
     {
-        await tokenService.ExchangeRefreshToken(incomingRefreshToken);
-        
+        var result = await tokenService.ExchangeRefreshToken(incomingRefreshToken);
+        if (result.IsFailure)
+            throw new Exception();
+
+        var (userId, rawToken) = result.Value;
+
+        var user = await userManager.FindByIdAsync(userId.ToString());
+        if (user is null)
+            throw new Exception();
+
+        var accessToken = tokenService.GenerateAccessToken(user);
+
+        return new LoginResponse(accessToken, rawToken);
     }
 
     public async Task<Result> ConfirmEmail(Guid userId, string encodedToken)
@@ -189,7 +199,7 @@ public class AuthService(
 
     private async Task<LoginResponse> GenerateAuthTokens(ApplicationUser user)
     {
-        var accessToken = await tokenService.GenerateAccessToken(user);
+        var accessToken = tokenService.GenerateAccessToken(user);
         var refreshToken = await tokenService.GenerateRefreshToken(user.Id);
 
         return new LoginResponse(accessToken, refreshToken);
