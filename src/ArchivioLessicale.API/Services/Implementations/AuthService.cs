@@ -7,6 +7,8 @@ using Microsoft.AspNetCore.Identity;
 using CSharpFunctionalExtensions;
 using System.Text;
 using Microsoft.AspNetCore.WebUtilities;
+using Org.BouncyCastle.Tls.Crypto;
+using Microsoft.EntityFrameworkCore;
 
 namespace ArchivioLessicale.API.Services.Implementations;
 
@@ -16,6 +18,7 @@ public class AuthService(
     ILinkService linkService,
     ICurrentUser currentUser,
     ApplicationDbContext context,
+    AuthDbContext authContext,
     UserManager<ApplicationUser> userManager) : IAuthService
 {
     public async Task<Result<LoginResponse>> Register(RegisterRequest request)
@@ -54,7 +57,7 @@ public class AuthService(
 
         await transaction.CommitAsync();
 
-        var encodedConfirmationEmailToken = await tokenService.GenerateEmailConfirmationToken(applicationUser.Id);
+        var encodedConfirmationEmailToken = await GenerateEmailConfirmationToken(applicationUser);
         var confirmationLink = linkService.GenerateEmailConfirmationLink(applicationUser.Id, encodedConfirmationEmailToken.Value);
         
         var emailRequest = new SendEmailRequest
@@ -130,30 +133,25 @@ public class AuthService(
         return Result.Success();
     }
 
-    public async Task<Result<string>> RequestChangeEmail(Guid userId, string newEmail, string password)
+    public async Task RequestEmailConfirmation(Guid userId)
     {
-        var applicationUser = await userManager.FindByIdAsync(userId.ToString());
+        var user = await userManager.FindByIdAsync(userId.ToString());
+        if (user is null)
+            throw new Exception();
 
-        if (applicationUser is null)
-            return Result.Failure<string>("There is not user with such id.");
+        if (await userManager.IsEmailConfirmedAsync(user))
+            throw new Exception();
 
-        if (!await userManager.CheckPasswordAsync(applicationUser, password))
-            return Result.Failure<string>("Wrong password.");
+        var decodedToken = await GenerateEmailConfirmationToken(user);
+        var emailConfirmationLink = linkService.GenerateEmailConfirmationLink(userId, decodedToken.Value);
 
-        if (applicationUser.Email == newEmail)
-            return Result.Failure<string>("The new email address cannot be the same as the old one.");
+        var sendEmailRequest = new SendEmailRequest
+        {
+            RecipientName = currentUser.UserName!,
+            RecipientEmail = user.Email!
+        };
 
-        var isEmailAlreadyExists = await userManager.FindByEmailAsync(newEmail);
-        if (isEmailAlreadyExists != null)
-            return Result.Failure<string>("User with this email already exists.");
-    
-        var pendingEmailChangeToken = await GeneratePendingEmailChangeToken(applicationUser, newEmail);
-        var cancellationEmailChangeToken = await tokenService.GenerateCancellationEmailChangeToken(applicationUser.Id);
-
-        var changeEmailRequest = new ChangeEmailRequest(applicationUser, newEmail, pendingEmailChangeToken, cancellationEmailChangeToken);
-        await SendEmailChangeRequestNotifications(changeEmailRequest);
-
-        return pendingEmailChangeToken;
+        await emailService.SendEmailConfirmation(sendEmailRequest, emailConfirmationLink);
     }
 
     public async Task<Result<LoginResponse>> ChangeEmail(Guid userId, string newEmail, string token)
@@ -175,16 +173,67 @@ public class AuthService(
         return tokens;
     }
 
-    public async Task<Result> CancelEmailChange(Guid userId)
+    public async Task<Result<string>> RequestEmailChange(Guid userId, string newEmail, string password)
+    {
+        var applicationUser = await userManager.FindByIdAsync(userId.ToString());
+
+        if (applicationUser is null)
+            return Result.Failure<string>("There is not user with such id.");
+
+        if (!await userManager.CheckPasswordAsync(applicationUser, password))
+            return Result.Failure<string>("Wrong password.");
+
+        if (applicationUser.Email == newEmail)
+            return Result.Failure<string>("The new email address cannot be the same as the old one.");
+
+        var isEmailAlreadyExists = await userManager.FindByEmailAsync(newEmail);
+        if (isEmailAlreadyExists != null)
+            return Result.Failure<string>("User with this email already exists.");
+    
+        var pendingEmailChangeToken = await GeneratePendingEmailChangeToken(applicationUser, newEmail);
+        var cancellationEmailChangeToken = await tokenService.GenerateCancellationEmailChangeToken(applicationUser.Id, applicationUser.Email!, newEmail);
+
+        var changeEmailRequest = new ChangeEmailRequest(applicationUser, newEmail, pendingEmailChangeToken.Value, cancellationEmailChangeToken);
+        await SendEmailChangeRequestNotifications(changeEmailRequest);
+
+        return pendingEmailChangeToken;
+    }
+
+    public async Task<LoginResponse> CancelEmailChange(Guid userId, 
+        string rawCancellationEmailChangeToken, string rawRefreshToken)
     {
         var user = await userManager.FindByIdAsync(userId.ToString());
         if (user is null)
-            return Result.Failure("There is no user with such id.");
+            throw new Exception();
+
+        var incomingHashedToken = tokenService.HashRawToken(rawCancellationEmailChangeToken);
+
+        var token = await authContext.CancellationEmailChangeTokens.FirstOrDefaultAsync(
+            tokenHash => tokenHash.TokenHash == incomingHashedToken &&
+            tokenHash.UserId == user.Id &&
+            tokenHash.ExpiresAt > DateTime.UtcNow &&
+            tokenHash.RevokedAt == null);
+
+        if (token is null)
+            throw new Exception();
 
         await userManager.UpdateSecurityStampAsync(user);
-        await tokenService.RevokeAllTokens(userId);
+        await emailService.SendIsUserWantResetPassword();
+        await tokenService.EndOtherSessions();
 
-        return Result.Success();
+        // TODO: IMPLIMENT ALL THESE CAZZO CON SendIsUserWantResetPassword, EndOtherSessions E COSÌ VIA 
+        // CHE SCHIFO, PERCHÉ HO SCELTO DI DIVENTARE PROGRAMMATORE 
+        // AVREI POTUTO MANGIARE LA PIZZA E LAVORARE COME CONTADINO IN SICILIA 
+        
+        if (await userManager.GetEmailAsync(user) != token.OldEmail)
+        {
+            var changeEmailToken = await userManager.GenerateChangeEmailTokenAsync(user, token.OldEmail);
+            await userManager.ChangeEmailAsync(user, token.OldEmail, changeEmailToken);
+        }
+
+        await tokenService.RevokeCancellationEmailChangeToken(user.Id, rawCancellationEmailChangeToken);
+
+        return await RefreshSession(rawRefreshToken);
     }
 
     public async Task ResetPassword()
@@ -196,6 +245,15 @@ public class AuthService(
     {
         throw new NotImplementedException();
     }
+
+    private async Task<Result<string>> GenerateEmailConfirmationToken(ApplicationUser user)
+    {
+        var emailConfirmationToken = await userManager.GenerateEmailConfirmationTokenAsync(user);
+        var encodedToken = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(emailConfirmationToken));
+
+        return encodedToken;
+    }
+
 
     private async Task<LoginResponse> GenerateAuthTokens(ApplicationUser user)
     {
@@ -216,14 +274,12 @@ public class AuthService(
         await emailService.SendEmailCancellationChange(emailCancellationChangeRequest, cancellationEmailChangeLink);
     }
 
-    private async Task<string> GenerateEmailConfirmationToken(ApplicationUser applicationUser)
+    private async Task<Result<string>> GeneratePendingEmailChangeToken(ApplicationUser user, string newEmail)
     {
-        throw new NotImplementedException();
-    }
+        if (user is null)
+            return Result.Failure<string>("There is no user with such id.");
 
-    private async Task<string> GeneratePendingEmailChangeToken(ApplicationUser applicationUser, string newEmail)
-    {
-        var token = await userManager.GenerateChangeEmailTokenAsync(applicationUser, newEmail);
+        var token = await userManager.GenerateChangeEmailTokenAsync(user, newEmail);
         var encodedToken = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
 
         return encodedToken;

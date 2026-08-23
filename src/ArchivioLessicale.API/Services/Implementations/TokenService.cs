@@ -3,13 +3,10 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using ArchivioLessicale.API.Data;
-using ArchivioLessicale.API.Models.DTOs;
 using ArchivioLessicale.API.Models.Entities;
 using ArchivioLessicale.API.Models.Options;
 using ArchivioLessicale.API.Services.Interfaces;
 using CSharpFunctionalExtensions;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -18,7 +15,6 @@ namespace ArchivioLessicale.API.Services.Implementations;
 
 public class TokenService(
     AuthDbContext dbContext,
-    UserManager<ApplicationUser> userManager,
     IOptions<JwtOptions> options) : ITokenService
 {
     public string GenerateAccessToken(ApplicationUser user)
@@ -54,7 +50,7 @@ public class TokenService(
     public async Task<Result<(Guid UserId, string RawToken)>> ExchangeRefreshToken(
         string incomingRawToken)
     {
-        var hashedTokenFromUser = HashRawRefreshToken(incomingRawToken);
+        var hashedTokenFromUser = HashRawToken(incomingRawToken);
 
         var storedToken = await dbContext.RefreshTokens
             .FirstOrDefaultAsync(token => token.TokenHash == hashedTokenFromUser);
@@ -67,16 +63,6 @@ public class TokenService(
             return Result.Failure<(Guid, string)>("");
 
         return await RotateRefreshToken(storedToken);
-    }
-
-    public async Task<Result<string>> ExchangeAccessToken(ApplicationUser user, Guid TokenId)
-    {
-        // So i need make the previous JWT token invalid, i think i'll make it using the Id of old JWT token
-        // i want push it to Redis/DB like token of the invalid JWT token and 
-        // auth middleware will check all incoming jwt tokens that their id not equals to the invalid token id
-        
-
-        throw new NotImplementedException();
     }
 
     public async Task RevokeAllJwtTokens()
@@ -112,28 +98,30 @@ public class TokenService(
         dbContext.RefreshTokens.RemoveRange(staleTokens);
         await dbContext.SaveChangesAsync();
     }
-    
-    public async Task<Result<string>> GenerateEmailConfirmationToken(Guid userId)
+
+
+    public async Task<string> GenerateCancellationEmailChangeToken(Guid userId, string oldEmail, string newEmail)
     {
-        var user = await userManager.FindByIdAsync(userId.ToString());
-        if (user is null)
-            return Result.Failure<string>("There is no user with such id.");
+        var (rawToken, hashedCancellationEmailChangeToken) = GenerateCustomToken();
 
-        var emailConfirmationToken = await userManager.GenerateEmailConfirmationTokenAsync(user);
-        var encodedToken = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(emailConfirmationToken));
+        var tokenEntity = new CancellationEmailChangeToken
+        {
+            TokenHash = hashedCancellationEmailChangeToken,
+            UserId = userId,
+            OldEmail = oldEmail,
+            NewEmail = newEmail,
+            CreatedAt = DateTime.UtcNow,
+            ExpiresAt = DateTime.UtcNow.AddDays(7)
+        };
 
-        return encodedToken;
+        dbContext.CancellationEmailChangeTokens.Add(tokenEntity);
+        await dbContext.SaveChangesAsync();
+
+        return rawToken;
     }
 
-    public async Task<Result<string>> GeneratePendingEmailChangeToken(Guid userId)
-    {
-        throw new NotImplementedException();
-    }
-
-    public async Task<string> GenerateCancellationEmailChangeToken(Guid userId)
-    {
-        throw new NotImplementedException();
-    }
+    public string HashRawToken(string rawToken)
+        => Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(rawToken)));
 
     private List<Claim> GenerateAccessTokenClaims(ApplicationUser user)
     {
@@ -149,8 +137,7 @@ public class TokenService(
 
     private (RefreshToken RefreshTokenEntity, string RawRefreshToken) CreateRefreshToken(Guid userId)
     {
-        var rawToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
-        var hashedRefreshToken = HashRawRefreshToken(rawToken);
+        var (rawToken, hashedRefreshToken) = GenerateCustomToken();
 
         var tokenEntity =  new RefreshToken
         {
@@ -164,8 +151,13 @@ public class TokenService(
         return (tokenEntity, rawToken);
     }
 
-    private string HashRawRefreshToken(string rawRefreshToken)
-        => Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(rawRefreshToken)));
+    private (string RawToken, string HashedToken) GenerateCustomToken()
+    {
+        var rawToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
+        var hashedToken = HashRawToken(rawToken);
+
+        return (rawToken, hashedToken);
+    }
 
     private async Task<Result> ValidateIncomingToken(RefreshToken incomingToken)
     {
@@ -197,5 +189,15 @@ public class TokenService(
     {
         oldToken.RevokedAt = DateTime.UtcNow;
         oldToken.ReplacedByTokenId = newToken.TokenId;
+    }
+
+    public Task EndOtherSessions()
+    {
+        throw new NotImplementedException();
+    }
+
+    public Task RevokeCancellationEmailChangeToken(Guid userId, string rawToken)
+    {
+        throw new NotImplementedException();
     }
 }

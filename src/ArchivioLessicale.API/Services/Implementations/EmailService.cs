@@ -80,4 +80,14 @@ public class EmailService(
         await client.SendAsync(message);
         await client.DisconnectAsync(true);
     }
+
+    public Task SendResetPasswordEmail()
+    {
+        throw new NotImplementedException();
+    }
+
+    public Task SendIsUserWantResetPassword()
+    {
+        throw new NotImplementedException();
+    }
 }

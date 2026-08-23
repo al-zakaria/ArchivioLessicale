@@ -9,5 +9,5 @@ public class AuthDbContext(DbContextOptions<AuthDbContext> options)
     : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>(options)
 {
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
-    public DbSet<PendingEmailChangeToken> PendingEmailChangeTokens => Set<PendingEmailChangeToken>();
+    public DbSet<CancellationEmailChangeToken> CancellationEmailChangeTokens => Set<CancellationEmailChangeToken>();
 }
