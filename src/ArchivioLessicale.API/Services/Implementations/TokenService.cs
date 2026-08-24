@@ -3,6 +3,7 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using ArchivioLessicale.API.Data;
+using ArchivioLessicale.API.Models.DTOs;
 using ArchivioLessicale.API.Models.Entities;
 using ArchivioLessicale.API.Models.Options;
 using ArchivioLessicale.API.Services.Interfaces;
@@ -14,7 +15,7 @@ using Microsoft.IdentityModel.Tokens;
 namespace ArchivioLessicale.API.Services.Implementations;
 
 public class TokenService(
-    AuthDbContext dbContext,
+    AuthDbContext context,
     IOptions<JwtOptions> options) : ITokenService
 {
     public string GenerateAccessToken(ApplicationUser user)
@@ -37,32 +38,42 @@ public class TokenService(
         return accessToken;
     }
 
-    public async Task<string> GenerateRefreshToken(Guid userId)
+    public async Task<string> GenerateRefreshToken(Guid userId, ClientMetaData  clientMetaData)
     {
-        var (refreshToken, rawToken) = CreateRefreshToken(userId);
+        var (refreshToken, rawToken) = CreateRefreshToken(userId, clientMetaData);
 
-        await dbContext.RefreshTokens.AddAsync(refreshToken);
-        await dbContext.SaveChangesAsync();
+        await context.RefreshTokens.AddAsync(refreshToken);
+        await context.SaveChangesAsync();
 
         return rawToken;
     }
 
     public async Task<Result<(Guid UserId, string RawToken)>> ExchangeRefreshToken(
-        string incomingRawToken)
+        string incomingRawToken, ClientMetaData clientMetaData)
     {
-        var hashedTokenFromUser = HashRawToken(incomingRawToken);
+        var validationRefreshTokenResult = await ValidateRefreshToken(incomingRawToken);
+        if (validationRefreshTokenResult.IsFailure)
+            return Result.Failure<(Guid UserId, string RawToken)>(validationRefreshTokenResult.Error);
 
-        var storedToken = await dbContext.RefreshTokens
-            .FirstOrDefaultAsync(token => token.TokenHash == hashedTokenFromUser);
+        return await RotateRefreshToken(validationRefreshTokenResult.Value, clientMetaData);
+    }
 
-        if (storedToken is null)
-            return Result.Failure<(Guid, string)>("There is no refresh token for this user");
+    public async Task<Result<string>> UpdateSession(string incomingRawRefreshToken, ApplicationUser user,
+        ClientMetaData clientMetaData)
+    {
+        var validationRefreshTokenResult = await ValidateRefreshToken(incomingRawRefreshToken);
+        if (validationRefreshTokenResult.IsFailure)
+            return Result.Failure<string>(validationRefreshTokenResult.Error);
 
-        var validationResult = await ValidateIncomingToken(storedToken);
-        if (validationResult.IsFailure)
-            return Result.Failure<(Guid, string)>("");
+        var storedToken = validationRefreshTokenResult.Value;
+        
+        storedToken.LastSeenAt =  DateTime.UtcNow;
+        storedToken.UserIpAddress = clientMetaData.UserIpAddress;
+        storedToken.UserAgent = clientMetaData.UserAgent;
 
-        return await RotateRefreshToken(storedToken);
+        await context.SaveChangesAsync();
+        
+        return GenerateAccessToken(user);
     }
 
     public async Task RevokeAllJwtTokens()
@@ -77,29 +88,28 @@ public class TokenService(
 
     public async Task RevokeAllTokens(Guid userId)
     {
-        var tokens = await dbContext.RefreshTokens
+        var tokens = await context.RefreshTokens
             .Where(token => token.UserId == userId && token.RevokedAt == null)
             .ToListAsync(); 
 
         foreach (var token in tokens)
             token.RevokedAt = DateTime.UtcNow;
 
-        await dbContext.SaveChangesAsync();
+        await context.SaveChangesAsync();
     }
 
     public async Task PurgeExpiredTokens()
     {
-        var staleTokens = await dbContext.RefreshTokens
+        var staleTokens = await context.RefreshTokens
             .Where(token => 
                 (token.RevokedAt != null && token.RevokedAt < options.Value.CutoffDate) ||
                 (token.RevokedAt == null && token.ExpiresAt < DateTime.UtcNow))
             .ToListAsync();
 
-        dbContext.RefreshTokens.RemoveRange(staleTokens);
-        await dbContext.SaveChangesAsync();
+        context.RefreshTokens.RemoveRange(staleTokens);
+        await context.SaveChangesAsync();
     }
-
-
+    
     public async Task<string> GenerateCancellationEmailChangeToken(Guid userId, string oldEmail, string newEmail)
     {
         var (rawToken, hashedCancellationEmailChangeToken) = GenerateCustomToken();
@@ -114,8 +124,8 @@ public class TokenService(
             ExpiresAt = DateTime.UtcNow.AddDays(7)
         };
 
-        dbContext.CancellationEmailChangeTokens.Add(tokenEntity);
-        await dbContext.SaveChangesAsync();
+        context.CancellationEmailChangeTokens.Add(tokenEntity);
+        await context.SaveChangesAsync();
 
         return rawToken;
     }
@@ -127,15 +137,17 @@ public class TokenService(
     {
         return
         [
-            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-            new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-            new(JwtRegisteredClaimNames.Email, user.Email!),
-            new(JwtRegisteredClaimNames.Nickname, user.UserName!),
-            new("security_stamp", user.SecurityStamp!)
+            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            new Claim(JwtRegisteredClaimNames.Sid, Guid.NewGuid().ToString()),
+            new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+            new Claim(JwtRegisteredClaimNames.Email, user.Email!),
+            new Claim(JwtRegisteredClaimNames.Nickname, user.UserName!),
+            new Claim("security_stamp", user.SecurityStamp!)
         ];
     }
 
-    private (RefreshToken RefreshTokenEntity, string RawRefreshToken) CreateRefreshToken(Guid userId)
+    private (RefreshToken RefreshTokenEntity, string RawRefreshToken) CreateRefreshToken(Guid userId,
+        ClientMetaData clientMetaData)
     {
         var (rawToken, hashedRefreshToken) = GenerateCustomToken();
 
@@ -146,6 +158,9 @@ public class TokenService(
             UserId = userId,
             CreatedAt = DateTime.UtcNow,
             ExpiresAt = DateTime.UtcNow.AddDays(30),
+            UserIpAddress = clientMetaData.UserIpAddress,
+            UserAgent = clientMetaData.UserAgent,
+            LastSeenAt = DateTime.UtcNow,
         };
 
         return (tokenEntity, rawToken);
@@ -159,7 +174,7 @@ public class TokenService(
         return (rawToken, hashedToken);
     }
 
-    private async Task<Result> ValidateIncomingToken(RefreshToken incomingToken)
+    private async Task<Result> ValidateStoredRefreshToken(RefreshToken incomingToken)
     {
         if (incomingToken.RevokedAt is not null)
         {
@@ -173,14 +188,32 @@ public class TokenService(
         return Result.Success();
     }
 
-    private async Task<(Guid UserId, string RawToken)> RotateRefreshToken(RefreshToken oldToken)
+    private async Task<Result<RefreshToken>> ValidateRefreshToken(string incomingRefreshToken)
     {
-        var (refreshToken, rawToken) = CreateRefreshToken(oldToken.UserId);
+        var hashedIncomingRefreshToken = HashRawToken(incomingRefreshToken);
+        
+        var storedToken = await context.RefreshTokens.FirstOrDefaultAsync(
+            refreshToken => refreshToken.TokenHash == hashedIncomingRefreshToken);
+        
+        if (storedToken is null)
+            return Result.Failure<RefreshToken>($"Refresh token with id {incomingRefreshToken} was not found.");
+        
+        var validationStoredRefreshTokenResult = await ValidateStoredRefreshToken(storedToken);
+        if (validationStoredRefreshTokenResult.IsFailure)
+            return Result.Failure<RefreshToken>(validationStoredRefreshTokenResult.Error);
+
+        return storedToken;
+    }
+
+    private async Task<(Guid UserId, string RawToken)> RotateRefreshToken(RefreshToken oldToken, 
+        ClientMetaData clientMetaData)
+    {
+        var (refreshToken, rawToken) = CreateRefreshToken(oldToken.UserId, clientMetaData);
 
         LinkRefreshTokens(oldToken, refreshToken);
 
-        await dbContext.RefreshTokens.AddAsync(refreshToken);
-        await dbContext.SaveChangesAsync();
+        await context.RefreshTokens.AddAsync(refreshToken);
+        await context.SaveChangesAsync();
 
         return (refreshToken.UserId, rawToken);
     }

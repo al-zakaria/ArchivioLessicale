@@ -7,7 +7,6 @@ using Microsoft.AspNetCore.Identity;
 using CSharpFunctionalExtensions;
 using System.Text;
 using Microsoft.AspNetCore.WebUtilities;
-using Org.BouncyCastle.Tls.Crypto;
 using Microsoft.EntityFrameworkCore;
 
 namespace ArchivioLessicale.API.Services.Implementations;
@@ -21,7 +20,7 @@ public class AuthService(
     AuthDbContext authContext,
     UserManager<ApplicationUser> userManager) : IAuthService
 {
-    public async Task<Result<LoginResponse>> Register(RegisterRequest request)
+    public async Task<Result<LoginResponse>> Register(RegisterRequest request, ClientMetaData clientMetaData)
     {
         var isUserAlreadyExists = await userManager.FindByEmailAsync(request.Email);
 
@@ -68,12 +67,12 @@ public class AuthService(
 
         await emailService.SendEmailConfirmation(emailRequest, confirmationLink);
 
-        var tokens = await GenerateAuthTokens(applicationUser);
+        var tokens = await GenerateAuthTokens(applicationUser, clientMetaData);
 
         return tokens;
     }
 
-    public async Task<Result<LoginResponse>> Login(LoginRequest request)
+    public async Task<Result<LoginResponse>> Login(LoginRequest request, ClientMetaData clientMetaData)
     {
         var user = await userManager.FindByEmailAsync(request.Email);
         if (user is null)
@@ -93,14 +92,14 @@ public class AuthService(
 
         await userManager.ResetAccessFailedCountAsync(user);
 
-        var tokens = await GenerateAuthTokens(user);
+        var tokens = await GenerateAuthTokens(user, clientMetaData);
 
         return tokens;
     }
 
-    public async Task<LoginResponse> RefreshSession(string incomingRefreshToken)
+    public async Task<LoginResponse> RefreshSession(string incomingRefreshToken, ClientMetaData  clientMetaData)
     {
-        var result = await tokenService.ExchangeRefreshToken(incomingRefreshToken);
+        var result = await tokenService.ExchangeRefreshToken(incomingRefreshToken, clientMetaData);
         if (result.IsFailure)
             throw new Exception();
 
@@ -113,6 +112,19 @@ public class AuthService(
         var accessToken = tokenService.GenerateAccessToken(user);
 
         return new LoginResponse(accessToken, rawToken);
+    }
+
+    public async Task<string> UpdateSession(string incomingRefreshToken, ClientMetaData clientMetaData)
+    {
+        var user = await userManager.FindByIdAsync(currentUser.Id.ToString());
+        if (user is null)
+            throw new Exception();
+        
+        var result = await tokenService.UpdateSession(incomingRefreshToken, user, clientMetaData);
+        if (result.IsFailure)
+            throw new Exception();
+        
+        return result.Value;
     }
 
     public async Task<Result> ConfirmEmail(Guid userId, string encodedToken)
@@ -154,7 +166,8 @@ public class AuthService(
         await emailService.SendEmailConfirmation(sendEmailRequest, emailConfirmationLink);
     }
 
-    public async Task<Result<LoginResponse>> ChangeEmail(Guid userId, string newEmail, string token)
+    public async Task<Result<LoginResponse>> ChangeEmail(Guid userId, string newEmail, string token, 
+        ClientMetaData clientMetaData)
     {
         var user = await userManager.FindByIdAsync(userId.ToString());
         if (user is null)
@@ -168,7 +181,7 @@ public class AuthService(
 
         await tokenService.RevokeAllTokens(user.Id);
 
-        var tokens = await GenerateAuthTokens(user);
+        var tokens = await GenerateAuthTokens(user, clientMetaData);
 
         return tokens;
     }
@@ -200,7 +213,7 @@ public class AuthService(
     }
 
     public async Task<LoginResponse> CancelEmailChange(Guid userId, 
-        string rawCancellationEmailChangeToken, string rawRefreshToken)
+        string rawCancellationEmailChangeToken, string rawRefreshToken, ClientMetaData clientMetaData)
     {
         var user = await userManager.FindByIdAsync(userId.ToString());
         if (user is null)
@@ -233,7 +246,7 @@ public class AuthService(
 
         await tokenService.RevokeCancellationEmailChangeToken(user.Id, rawCancellationEmailChangeToken);
 
-        return await RefreshSession(rawRefreshToken);
+        return await RefreshSession(rawRefreshToken, clientMetaData);
     }
 
     public async Task ResetPassword()
@@ -255,10 +268,10 @@ public class AuthService(
     }
 
 
-    private async Task<LoginResponse> GenerateAuthTokens(ApplicationUser user)
+    private async Task<LoginResponse> GenerateAuthTokens(ApplicationUser user, ClientMetaData clientMetaData)
     {
         var accessToken = tokenService.GenerateAccessToken(user);
-        var refreshToken = await tokenService.GenerateRefreshToken(user.Id);
+        var refreshToken = await tokenService.GenerateRefreshToken(user.Id, clientMetaData);
 
         return new LoginResponse(accessToken, refreshToken);
     }
