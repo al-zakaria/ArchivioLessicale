@@ -26,12 +26,8 @@ public class AuthService(
 
         if (isUserAlreadyExists is not null)
             return Result.Failure<LoginResponse>("User with this email already exists");
-
-        var connection =  context.Database.GetDbConnection();
-        context.Database.SetDbConnection(connection, false);
         
         await using var transaction = await context.Database.BeginTransactionAsync();
-        await context.Database.UseTransactionAsync(transaction.GetDbTransaction());
 
         var applicationUser = new ApplicationUser
         {
