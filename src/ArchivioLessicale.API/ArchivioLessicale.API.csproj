@@ -30,7 +30,6 @@
 
     <ItemGroup>
       <Folder Include="Data\" />
-      <Folder Include="Endpoints\" />
       <Folder Include="Models/Enums/" />
       <Folder Include="Models/Options/" />
       <Folder Include="Validators/" />

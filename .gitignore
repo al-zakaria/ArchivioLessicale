@@ -1,6 +1,8 @@
 /.DS_Store
 /.idea
 /.vscode
-/bin
-/obj
+bin/
+obj/
+[Bb]in/
+[Oo]bj/
 .info
