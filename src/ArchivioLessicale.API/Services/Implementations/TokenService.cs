@@ -15,7 +15,7 @@ using Microsoft.IdentityModel.Tokens;
 namespace ArchivioLessicale.API.Services.Implementations;
 
 public class TokenService(
-    AuthDbContext context,
+    ApplicationDbContext context,
     IOptions<JwtOptions> options) : ITokenService
 {
     public string GenerateAccessToken(ApplicationUser user)

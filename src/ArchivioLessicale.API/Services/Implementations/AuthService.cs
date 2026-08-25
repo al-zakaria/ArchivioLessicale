@@ -8,6 +8,7 @@ using CSharpFunctionalExtensions;
 using System.Text;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace ArchivioLessicale.API.Services.Implementations;
 
@@ -17,7 +18,6 @@ public class AuthService(
     ILinkService linkService,
     ICurrentUser currentUser,
     ApplicationDbContext context,
-    AuthDbContext authContext,
     UserManager<ApplicationUser> userManager) : IAuthService
 {
     public async Task<Result<LoginResponse>> Register(RegisterRequest request, ClientMetaData clientMetaData)
@@ -27,7 +27,11 @@ public class AuthService(
         if (isUserAlreadyExists is not null)
             return Result.Failure<LoginResponse>("User with this email already exists");
 
+        var connection =  context.Database.GetDbConnection();
+        context.Database.SetDbConnection(connection, false);
+        
         await using var transaction = await context.Database.BeginTransactionAsync();
+        await context.Database.UseTransactionAsync(transaction.GetDbTransaction());
 
         var applicationUser = new ApplicationUser
         {
@@ -99,7 +103,7 @@ public class AuthService(
 
     public async Task<LoginResponse> RefreshSession(string incomingRefreshToken, ClientMetaData  clientMetaData)
     {
-        var result = await tokenService.ExchangeRefreshToken(incomingRefreshToken, clientMetaData);
+        var result = await tokenService.ExchangeRefreshToken(incomingRefreshToken, clientMetaData); // TODO: name this method Exchange Session for example and generate access token lì
         if (result.IsFailure)
             throw new Exception();
 
@@ -221,7 +225,7 @@ public class AuthService(
 
         var incomingHashedToken = tokenService.HashRawToken(rawCancellationEmailChangeToken);
 
-        var token = await authContext.CancellationEmailChangeTokens.FirstOrDefaultAsync(
+        var token = await context.CancellationEmailChangeTokens.FirstOrDefaultAsync(
             tokenHash => tokenHash.TokenHash == incomingHashedToken &&
             tokenHash.UserId == user.Id &&
             tokenHash.ExpiresAt > DateTime.UtcNow &&
@@ -289,9 +293,6 @@ public class AuthService(
 
     private async Task<Result<string>> GeneratePendingEmailChangeToken(ApplicationUser user, string newEmail)
     {
-        if (user is null)
-            return Result.Failure<string>("There is no user with such id.");
-
         var token = await userManager.GenerateChangeEmailTokenAsync(user, newEmail);
         var encodedToken = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
 

@@ -1,6 +1,16 @@
+using ArchivioLessicale.API.Extensions;
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenApi();
+
+builder
+    .AddStandardInfrastructure()
+    .AddData()
+    .AddApplicationAbstractions()
+    .AddApplicationServices()
+    .ConfigureHttpClients()
+    .AddFluentValidation();
 
 var app = builder.Build();
 
