@@ -1,3 +1,7 @@
 namespace ArchivioLessicale.API.Models.DTOs.Auth.Login;
 
-public record LoginResponse(string AccessToken, DateTime AccessTokenExpiresAt, string RefreshToken);
+public record LoginResponse(
+    string AccessToken, 
+    DateTimeOffset AccessTokenExpiresAt, 
+    string RefreshToken,
+    DateTimeOffset RefreshTokenExpiresAt);
