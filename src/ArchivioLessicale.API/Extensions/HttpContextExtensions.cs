@@ -1,4 +1,5 @@
 using ArchivioLessicale.API.Models.DTOs;
+using ArchivioLessicale.API.Models.DTOs.Auth;
 
 namespace ArchivioLessicale.API.Extensions;
 
@@ -7,12 +8,7 @@ public static class HttpContextExtensions
 {
     public static ClientMetaData GetClientMetaData(this HttpContext context)
     {
-        var ipAddress = context.Request.Headers["X-Forwarded-For"].FirstOrDefault();
-
-        if (string.IsNullOrWhiteSpace(ipAddress))
-        {
-            ipAddress = context.Connection.RemoteIpAddress?.ToString() ?? "Unknown IP";
-        }
+        var ipAddress = context.Connection.RemoteIpAddress.ToString();
 
         var userAgent = context.Request.Headers.UserAgent.ToString();
 

@@ -6,9 +6,12 @@ using ArchivioLessicale.API.Services.Interfaces;
 using Microsoft.AspNetCore.Identity;
 using CSharpFunctionalExtensions;
 using System.Text;
+using ArchivioLessicale.API.Models.DTOs.Auth;
+using ArchivioLessicale.API.Models.DTOs.Auth.Login;
+using ArchivioLessicale.API.Models.DTOs.Email;
+using ArchivioLessicale.API.Models.Errors.TypedErrors;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Storage;
 
 namespace ArchivioLessicale.API.Services.Implementations;
 
@@ -25,7 +28,7 @@ public class AuthService(
         var isUserAlreadyExists = await userManager.FindByEmailAsync(request.Email);
 
         if (isUserAlreadyExists is not null)
-            return Result.Failure<LoginResponse>("User with this email already exists");
+            return Result.Failure<LoginResponse>(AuthErrors.UserAlreadyExists(request.Email));
         
         await using var transaction = await context.Database.BeginTransactionAsync();
 
@@ -38,11 +41,10 @@ public class AuthService(
         };
 
         var result = await userManager.CreateAsync(applicationUser, request.Password);
-
         if (!result.Succeeded)
             return Result.Failure<LoginResponse>($"Registration failed: {string.Join(",", result.Errors.Select(d => d.Description))}");
 
-        var user = new User
+        var user = new Profile
         {
             Id = applicationUser.Id,
             FirstName = request.FirstName,
@@ -51,7 +53,7 @@ public class AuthService(
             CreatedAt = applicationUser.CreatedAt
         };
 
-        context.Users.Add(user);
+        context.Profiles.Add(user);
         await context.SaveChangesAsync();
 
         await transaction.CommitAsync();
@@ -111,10 +113,10 @@ public class AuthService(
 
         var accessToken = tokenService.GenerateAccessToken(user);
 
-        return new LoginResponse(accessToken, rawToken);
+        return new LoginResponse(accessToken.Token, accessToken.TokenExpiresAt, rawToken);
     }
 
-    public async Task<string> UpdateSession(string incomingRefreshToken, ClientMetaData clientMetaData)
+    public async Task<(string Token, DateTime TokenExpiresAt)> UpdateSession(string incomingRefreshToken, ClientMetaData clientMetaData)
     {
         var user = await userManager.FindByIdAsync(currentUser.Id.ToString());
         if (user is null)
@@ -124,7 +126,7 @@ public class AuthService(
         if (result.IsFailure)
             throw new Exception();
         
-        return result.Value;
+        return (result.Value.Token, result.Value.TokenExpiresAt);
     }
 
     public async Task<Result> ConfirmEmail(Guid userId, string encodedToken)
@@ -181,9 +183,9 @@ public class AuthService(
 
         await tokenService.RevokeAllTokens(user.Id);
 
-        var tokens = await GenerateAuthTokens(user, clientMetaData);
+        var loginResponse = await GenerateAuthTokens(user, clientMetaData);
 
-        return tokens;
+        return loginResponse;
     }
 
     public async Task<Result<string>> RequestEmailChange(Guid userId, string newEmail, string password)
@@ -273,7 +275,7 @@ public class AuthService(
         var accessToken = tokenService.GenerateAccessToken(user);
         var refreshToken = await tokenService.GenerateRefreshToken(user.Id, clientMetaData);
 
-        return new LoginResponse(accessToken, refreshToken);
+        return new LoginResponse(accessToken.Token, accessToken.TokenExpiresAt, refreshToken);
     }
 
     private async Task SendEmailChangeRequestNotifications(ChangeEmailRequest request)

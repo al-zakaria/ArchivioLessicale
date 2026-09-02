@@ -5,6 +5,7 @@ using ArchivioLessicale.API.Models.Options;
 using MailKit.Security;
 using Microsoft.Extensions.Options;
 using ArchivioLessicale.API.Models.DTOs;
+using ArchivioLessicale.API.Models.DTOs.Email;
 
 namespace ArchivioLessicale.API.Services.Implementations;
 

@@ -1,16 +1,18 @@
-using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using ArchivioLessicale.API.Data;
-using ArchivioLessicale.API.Models.DTOs;
+using ArchivioLessicale.API.Models.DTOs.Auth;
 using ArchivioLessicale.API.Models.Entities;
+using ArchivioLessicale.API.Models.Errors.TypedErrors;
 using ArchivioLessicale.API.Models.Options;
 using ArchivioLessicale.API.Services.Interfaces;
 using CSharpFunctionalExtensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
+using JwtRegisteredClaimNames = System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames;
 
 namespace ArchivioLessicale.API.Services.Implementations;
 
@@ -18,24 +20,28 @@ public class TokenService(
     ApplicationDbContext context,
     IOptions<JwtOptions> options) : ITokenService
 {
-    public string GenerateAccessToken(ApplicationUser user)
+    public (string Token, DateTime TokenExpiresAt) GenerateAccessToken(ApplicationUser user)
     {
-        var privateKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(options.Value.SecretKey));
-        var creds = new SigningCredentials(privateKey, SecurityAlgorithms.HmacSha256);
+        var tokenExpiresAt = DateTime.UtcNow.AddMinutes(options.Value.AccessTokenExpirationMinutes);
+        
+        var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(options.Value.SecretKey));
+        var credentials = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
 
         var authClaims = GenerateAccessTokenClaims(user);
 
-        var token = new JwtSecurityToken(
-            issuer: options.Value.Issuer,
-            audience: options.Value.Audience,
-            expires: DateTime.UtcNow.AddMinutes(options.Value.AccessTokenExperitaionMinutes),
-            claims: authClaims,
-            signingCredentials: creds
-        );
+        var descriptor = new SecurityTokenDescriptor
+        {
+            Issuer = options.Value.Issuer,
+            Audience = options.Value.Audience,
+            Expires = tokenExpiresAt,
+            Subject = new ClaimsIdentity(authClaims),
+            SigningCredentials = credentials
+        };
 
-        var accessToken = new JwtSecurityTokenHandler().WriteToken(token);
+        var handler = new JsonWebTokenHandler();
+        var token = handler.CreateToken(descriptor);
 
-        return accessToken;
+        return (token, tokenExpiresAt);
     }
 
     public async Task<string> GenerateRefreshToken(Guid userId, ClientMetaData  clientMetaData)
@@ -58,12 +64,12 @@ public class TokenService(
         return await RotateRefreshToken(validationRefreshTokenResult.Value, clientMetaData);
     }
 
-    public async Task<Result<string>> UpdateSession(string incomingRawRefreshToken, ApplicationUser user,
-        ClientMetaData clientMetaData)
+    public async Task<Result<(string Token, DateTime TokenExpiresAt)>> 
+        UpdateSession(string incomingRawRefreshToken, ApplicationUser user, ClientMetaData clientMetaData)
     {
         var validationRefreshTokenResult = await ValidateRefreshToken(incomingRawRefreshToken);
         if (validationRefreshTokenResult.IsFailure)
-            return Result.Failure<string>(validationRefreshTokenResult.Error);
+            return Result.Failure<(string Token, DateTime TokenExpiresAt)>(validationRefreshTokenResult.Error);
 
         var storedToken = validationRefreshTokenResult.Value;
         
@@ -104,7 +110,7 @@ public class TokenService(
             .Where(token => 
                 (token.RevokedAt != null && token.RevokedAt < options.Value.CutoffDate) ||
                 (token.RevokedAt == null && token.ExpiresAt < DateTime.UtcNow))
-            .ToListAsync();
+            .ToListAsync(); // TODO: && token.ExpiresAt < options.Value.CutoffDate 
 
         context.RefreshTokens.RemoveRange(staleTokens);
         await context.SaveChangesAsync();
@@ -179,11 +185,11 @@ public class TokenService(
         if (incomingToken.RevokedAt is not null)
         {
             await RevokeAllTokens(incomingToken.UserId); 
-            return Result.Failure($"Refresh token with id {incomingToken.TokenId} was stollen.");
+            return Result.Failure(TokensErrors.Stolen(incomingToken.TokenId));
         }
 
         if (incomingToken.ExpiresAt < DateTime.UtcNow)
-            return Result.Failure("This refresh token has expired.");
+            return Result.Failure(TokensErrors.Expired(incomingToken.TokenId));
 
         return Result.Success();
     }
@@ -196,7 +202,7 @@ public class TokenService(
             refreshToken => refreshToken.TokenHash == hashedIncomingRefreshToken);
         
         if (storedToken is null)
-            return Result.Failure<RefreshToken>($"Refresh token with id {incomingRefreshToken} was not found.");
+            return Result.Failure<RefreshToken>(TokensErrors.NotFound);
         
         var validationStoredRefreshTokenResult = await ValidateStoredRefreshToken(storedToken);
         if (validationStoredRefreshTokenResult.IsFailure)
@@ -210,18 +216,13 @@ public class TokenService(
     {
         var (refreshToken, rawToken) = CreateRefreshToken(oldToken.UserId, clientMetaData);
 
-        LinkRefreshTokens(oldToken, refreshToken);
+        oldToken.RevokedAt = DateTime.UtcNow;
+        oldToken.ReplacedByTokenId = refreshToken.TokenId;
 
         await context.RefreshTokens.AddAsync(refreshToken);
         await context.SaveChangesAsync();
 
         return (refreshToken.UserId, rawToken);
-    }
-
-    private void LinkRefreshTokens(RefreshToken oldToken, RefreshToken newToken)
-    {
-        oldToken.RevokedAt = DateTime.UtcNow;
-        oldToken.ReplacedByTokenId = newToken.TokenId;
     }
 
     public Task EndOtherSessions()

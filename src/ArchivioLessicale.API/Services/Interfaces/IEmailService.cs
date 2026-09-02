@@ -1,4 +1,5 @@
 using ArchivioLessicale.API.Models.DTOs;
+using ArchivioLessicale.API.Models.DTOs.Email;
 
 namespace ArchivioLessicale.API.Services.Interfaces;
 

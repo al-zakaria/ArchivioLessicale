@@ -2,7 +2,7 @@ using ArchivioLessicale.API.Models.Enums;
 
 namespace ArchivioLessicale.API.Models;
 
-public class User
+public class Profile
 {
     public Guid Id { get; set; }
     public string? FirstName { get; set; }

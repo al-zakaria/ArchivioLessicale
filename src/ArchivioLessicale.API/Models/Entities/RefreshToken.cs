@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace ArchivioLessicale.API.Models.Entities;
 
 public class RefreshToken
