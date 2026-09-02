@@ -1,6 +1,6 @@
 using ArchivioLessicale.API.Models.Enums;
 
-namespace ArchivioLessicale.API.Models;
+namespace ArchivioLessicale.API.Models.Entities;
 
 public class Profile
 {
