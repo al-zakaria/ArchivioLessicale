@@ -12,7 +12,7 @@ public class RefreshToken
     public DateTimeOffset? RevokedAt { get; set; }
     public Guid? ReplacedByTokenId { get; set; }
     
-    public string UserIpAddress { get; set; } = string.Empty;
+    public string UserAgentIpAddress { get; set; } = string.Empty;
     public string UserAgent { get; set; } = string.Empty;
     public DateTimeOffset? LastSeenAt { get; set; }
 
