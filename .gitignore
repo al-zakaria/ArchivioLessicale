@@ -6,3 +6,6 @@ obj/
 [Bb]in/
 [Oo]bj/
 .info
+/src/ArchivioLessicale.API/.DS_Store
+/src/ArchivioLessicale.API/obj/
+/src/ArchivioLessicale.API/bin/
