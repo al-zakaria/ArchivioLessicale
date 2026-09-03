@@ -1,6 +1,9 @@
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
+using ArchivioLessicale.API.Data;
 using ArchivioLessicale.API.Models.DTOs.Tokens;
+using ArchivioLessicale.API.Models.Entities;
 using ArchivioLessicale.API.Models.Options;
 using ArchivioLessicale.API.Services.Interfaces;
 using Microsoft.IdentityModel.JsonWebTokens;
@@ -9,7 +12,9 @@ using JwtRegisteredClaimNames = Microsoft.IdentityModel.JsonWebTokens.JwtRegiste
 
 namespace ArchivioLessicale.API.Services.Implementations;
 
-public class TokenService(JwtOptions options) : ITokenService
+public class TokenService(
+    JwtOptions options,
+    ApplicationDbContext context) : ITokenService
 {
     public GenerateTokenResponse GenerateAccessToken(GenerateAccessTokenRequest request)
     {
@@ -41,8 +46,30 @@ public class TokenService(JwtOptions options) : ITokenService
         return new GenerateTokenResponse(token, tokenExpiresAt);
     }
 
-    public Task<GenerateTokenResponse> GenerateRefreshToken(GenerateRefreshTokenRequest request)
+    public async Task<GenerateTokenResponse> GenerateRefreshToken(GenerateRefreshTokenRequest request)
     {
-        throw new NotImplementedException();
+        var rawRefreshToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
+        var tokenHash = Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(rawRefreshToken)));
+        
+        var now = DateTimeOffset.UtcNow;
+        var tokenExpiresAt = now.AddDays(7);
+
+        var tokenEntity = new RefreshToken
+        {
+            TokenId = Guid.NewGuid(),
+            TokenHash = tokenHash,
+            UserId = request.UserId,
+            LinkedActualAccessTokenId =  request.ActualAccessTokenId,
+            CreatedAt = now,
+            ExpiresAt = tokenExpiresAt,
+            UserAgentIpAddress = request.ClientMetaData.UserAgentIpAddress,
+            UserAgent = request.ClientMetaData.UserAgent,
+            LastSeenAt = now
+        };
+        
+        context.RefreshTokens.Add(tokenEntity);
+        await context.SaveChangesAsync();
+         
+        return new GenerateTokenResponse(rawRefreshToken, tokenEntity.ExpiresAt);
     }
 }
