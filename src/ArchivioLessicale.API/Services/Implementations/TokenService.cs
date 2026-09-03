@@ -1,6 +1,5 @@
 using System.Security.Claims;
 using System.Text;
-using ArchivioLessicale.API.Models.DTOs.Auth;
 using ArchivioLessicale.API.Models.DTOs.Tokens;
 using ArchivioLessicale.API.Models.Options;
 using ArchivioLessicale.API.Services.Interfaces;
@@ -42,7 +41,7 @@ public class TokenService(JwtOptions options) : ITokenService
         return new GenerateTokenResponse(token, tokenExpiresAt);
     }
 
-    public Task<GenerateTokenResponse> GenerateRefreshToken(Guid userId, ClientMetaData clientMetaData)
+    public Task<GenerateTokenResponse> GenerateRefreshToken(GenerateRefreshTokenRequest request)
     {
         throw new NotImplementedException();
     }
