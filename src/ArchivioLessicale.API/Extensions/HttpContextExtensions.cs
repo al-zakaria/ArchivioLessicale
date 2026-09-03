@@ -13,7 +13,7 @@ public static class HttpContextExtensions
         var userAgent = context.Request.Headers.UserAgent.ToString();
 
         return new ClientMetaData(
-            UserIpAddress: ipAddress,
+            UserAgentIpAddress: ipAddress,
             UserAgent: string.IsNullOrWhiteSpace(userAgent) ? "Unknown User-Agent" : userAgent
         );
     }
