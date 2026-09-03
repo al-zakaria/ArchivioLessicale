@@ -10,5 +10,5 @@ public class Profile
     public UserGrade Grade { get; set; }
     public int NumberOfLearningWords { get; set; } = UserConstants.DefaultNumberLearningWords;
     public int NumberOfLearnedWords { get; set; } = UserConstants.DefaultNumberLearnedWords;
-    public DateTime CreatedAt { get; set; } 
+    public DateTimeOffset CreatedAt { get; set; } 
 }
