@@ -10,6 +10,7 @@ public class RefreshToken
     public DateTimeOffset CreatedAt { get; init; }
     public DateTimeOffset ExpiresAt { get; init; }
     public DateTimeOffset? RevokedAt { get; set; }
+    public Guid LinkedActualAccessTokenId { get; set; }
     public Guid? ReplacedByTokenId { get; set; }
     
     public string UserAgentIpAddress { get; set; } = string.Empty;
