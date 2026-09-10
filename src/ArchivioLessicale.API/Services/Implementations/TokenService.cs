@@ -2,10 +2,12 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using ArchivioLessicale.API.Data;
+using ArchivioLessicale.API.Models.DTOs.Auth.Login;
 using ArchivioLessicale.API.Models.DTOs.Tokens;
 using ArchivioLessicale.API.Models.Entities;
 using ArchivioLessicale.API.Models.Options;
 using ArchivioLessicale.API.Services.Interfaces;
+using Mapster;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 using JwtRegisteredClaimNames = Microsoft.IdentityModel.JsonWebTokens.JwtRegisteredClaimNames;
@@ -16,16 +18,31 @@ public class TokenService(
     JwtOptions options,
     ApplicationDbContext context) : ITokenService
 {
-    public GenerateTokenResponse GenerateAccessToken(GenerateAccessTokenRequest request)
+    public async Task<LoginResponse> IssueAuthTokensAsync(IssueAuthTokensRequest request)
+    {
+        var generateAccessTokenRequest = request.Adapt<GenerateAccessTokenRequest>();
+        var generateRefreshTokenRequest = request.Adapt<GenerateRefreshTokenRequest>();
+        
+        var accessToken = GenerateAccessToken(generateAccessTokenRequest);
+        var refreshToken = await GenerateRefreshTokenAsync(generateRefreshTokenRequest);
+        
+        return new LoginResponse(
+            accessToken.AccessToken, accessToken.AccessTokenExpiresAt,
+            refreshToken.RefreshToken, refreshToken.RefreshTokenExpiresAt);
+    }
+    
+    private GenerateAccessTokenResponse GenerateAccessToken(GenerateAccessTokenRequest request)
     {
         var tokenExpiresAt = DateTimeOffset.UtcNow.AddMinutes(options.AccessTokenExpirationMinutes);
 
         var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(options.SecretKey));
         var signingCredentials = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
 
+        var jti = Guid.NewGuid();
+        
         var authClaims = new List<Claim>
         {
-            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            new(JwtRegisteredClaimNames.Jti, jti.ToString()),
             new(JwtRegisteredClaimNames.Sub, request.UserId.ToString()),
             new(JwtRegisteredClaimNames.Nickname, request.NickName),
             new(JwtRegisteredClaimNames.Email, request.Email),
@@ -43,10 +60,10 @@ public class TokenService(
         var handler = new JsonWebTokenHandler();
         var token = handler.CreateToken(descriptor);
 
-        return new GenerateTokenResponse(token, tokenExpiresAt);
+        return new GenerateAccessTokenResponse(token, tokenExpiresAt, jti);
     }
 
-    public async Task<GenerateTokenResponse> GenerateRefreshToken(GenerateRefreshTokenRequest request)
+    private async Task<GenerateRefreshTokenResponse> GenerateRefreshTokenAsync(GenerateRefreshTokenRequest request)
     {
         var rawRefreshToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
         var tokenHash = Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(rawRefreshToken)));
@@ -70,6 +87,6 @@ public class TokenService(
         context.RefreshTokens.Add(tokenEntity);
         await context.SaveChangesAsync();
          
-        return new GenerateTokenResponse(rawRefreshToken, tokenEntity.ExpiresAt);
+        return new GenerateRefreshTokenResponse(rawRefreshToken, tokenEntity.ExpiresAt);
     }
 }

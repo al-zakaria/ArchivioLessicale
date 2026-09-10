@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace ArchivioLessicale.API.Models.Errors;
+namespace ArchivioLessicale.API.Models.Primitives.Errors;
 
 public record Error(string ErrorCode, string ErrorDescription)
 {

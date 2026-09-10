@@ -1,4 +1,5 @@
 using ArchivioLessicale.API.Models.DTOs;
+using ArchivioLessicale.API.Models.DTOs.Auth.Register;
 using FluentValidation;
 
 namespace ArchivioLessicale.API.Validators;
@@ -7,11 +8,11 @@ public class RegisterRequestValidator : AbstractValidator<RegisterRequest>
 {
     public RegisterRequestValidator()
     {
-        RuleFor(rule => rule.FirstName)
-            .NotEmpty().WithMessage("First Name is required");
+        RuleFor(rule => rule.DisplayName)
+            .NotEmpty().WithMessage("Display name is required");
 
-        RuleFor(rule => rule.SecondName)
-            .NotEmpty().WithMessage("Second Name is required");
+        RuleFor(rule => rule.NickName)
+            .NotEmpty().WithMessage("Nickname is required");
 
         RuleFor(rule => rule.Grade)
             .NotEmpty().WithMessage("Grade is required");
@@ -21,7 +22,7 @@ public class RegisterRequestValidator : AbstractValidator<RegisterRequest>
             .EmailAddress().WithMessage("Invalid email format");
 
         RuleFor(rule => rule.PhoneNumber)
-            .NotEmpty().WithMessage("Phonenumber is required");
+            .NotEmpty().WithMessage("Phone number is required");
         RuleFor(rule => rule.Password)
             .NotEmpty().WithMessage("Password is required");
 

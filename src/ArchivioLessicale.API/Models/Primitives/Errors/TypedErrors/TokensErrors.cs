@@ -1,4 +1,4 @@
-namespace ArchivioLessicale.API.Models.Errors.TypedErrors;
+namespace ArchivioLessicale.API.Models.Primitives.Errors.TypedErrors;
 
 public static class TokensErrors
 {

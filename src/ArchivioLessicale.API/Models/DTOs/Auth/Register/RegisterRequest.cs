@@ -1,10 +1,10 @@
 using ArchivioLessicale.API.Models.Enums;
 
-namespace ArchivioLessicale.API.Models.DTOs;
+namespace ArchivioLessicale.API.Models.DTOs.Auth.Register;
 
 public record RegisterRequest(
-    string FirstName, 
-    string SecondName, 
+    string NickName, 
+    string DisplayName,
     UserGrade Grade, 
     string Email, 
     string PhoneNumber, 

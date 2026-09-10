@@ -10,5 +10,22 @@ public class Profile
     public UserGrade Grade { get; set; }
     public int NumberOfLearningWords { get; set; } = UserConstants.DefaultNumberLearningWords;
     public int NumberOfLearnedWords { get; set; } = UserConstants.DefaultNumberLearnedWords;
-    public DateTimeOffset CreatedAt { get; set; } 
+    public DateTimeOffset CreatedAt { get; set; }
+
+    public static Profile Create(
+        Guid id,
+        string nickName,
+        string displayName,
+        UserGrade grade,
+        DateTimeOffset createdAt)
+    {
+        return new Profile
+        {
+            Id = id,
+            NickName = nickName,
+            DisplayName = displayName,
+            Grade = grade,
+            CreatedAt = createdAt
+        };
+    }
 }

@@ -1,5 +1,6 @@
 using ArchivioLessicale.API.Endpoints.Filters;
 using ArchivioLessicale.API.Models.DTOs;
+using ArchivioLessicale.API.Models.DTOs.Auth.Register;
 using IResult = Microsoft.AspNetCore.Http.IResult;
 
 namespace ArchivioLessicale.API.Endpoints;
