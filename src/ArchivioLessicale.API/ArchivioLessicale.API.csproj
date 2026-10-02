@@ -30,10 +30,18 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Folder Include="Data\" />
+      <Folder Include="Features/Auth/" />
+      <Folder Include="Features\Articles\" />
+      <Folder Include="Features\Auth\ConfirmEmail\" />
+      <Folder Include="Features\Auth\Domain\" />
+      <Folder Include="Features\Auth\Login\" />
+      <Folder Include="Features\Auth\Register\" />
+      <Folder Include="Features\Auth\Tokens\" />
+      <Folder Include="Features\Email\" />
+      <Folder Include="Infrastructure\" />
       <Folder Include="Models/Enums/" />
       <Folder Include="Models/Options/" />
-      <Folder Include="Models\Primitives\" />
+      <Folder Include="Shared\" />
       <Folder Include="Validators/" />
     </ItemGroup>
 

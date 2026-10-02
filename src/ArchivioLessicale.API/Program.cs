@@ -1,4 +1,4 @@
-using ArchivioLessicale.API.Extensions;
+using ArchivioLessicale.API.Shared.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
