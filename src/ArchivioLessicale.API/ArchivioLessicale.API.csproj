@@ -10,6 +10,7 @@
         <PackageReference Include="AngleSharp" Version="1.5.3-beta.564" />
         <PackageReference Include="AngleSharp.Io" Version="1.0.0" />
         <PackageReference Include="CSharpFunctionalExtensions" Version="3.7.0" />
+        <PackageReference Include="ErrorOr" Version="2.1.1" />
         <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
         <PackageReference Include="Html2Text" Version="1.0.0" />
         <PackageReference Include="MailKit" Version="4.17.0" />
@@ -27,10 +28,10 @@
         <PackageReference Include="Npgsql" Version="10.0.3" />
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
         <PackageReference Include="Scriban" Version="7.2.6" />
+        <PackageReference Include="WolverineFx" Version="6.45.0" />
     </ItemGroup>
 
     <ItemGroup>
-      <Folder Include="Features/Auth/" />
       <Folder Include="Features\Articles\" />
       <Folder Include="Features\Auth\ConfirmEmail\" />
       <Folder Include="Features\Auth\Domain\" />
@@ -38,11 +39,6 @@
       <Folder Include="Features\Auth\Register\" />
       <Folder Include="Features\Auth\Tokens\" />
       <Folder Include="Features\Email\" />
-      <Folder Include="Infrastructure\" />
-      <Folder Include="Models/Enums/" />
-      <Folder Include="Models/Options/" />
-      <Folder Include="Shared\" />
-      <Folder Include="Validators/" />
     </ItemGroup>
 
 </Project>
