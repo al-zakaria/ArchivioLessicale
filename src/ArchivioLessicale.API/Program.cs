@@ -1,14 +1,17 @@
+using ArchivioLessicale.API.Common.Extensions;
+
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddOpenApi();
+var (_, jwtOptions) = builder.AddOptions();
+builder.AddData()
+    .AddAuth(jwtOptions)
+    .AddApplicationServices()
+    .AddFluentValidation()
+    .AddWolverine()
+    .AddStandardConfiguration();
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment()) 
-    app.MapOpenApi();
-
-app.UseHttpsRedirection();
-
-app.UseForwardedHeaders();
+app.UseWebApplicationPipeline();
 
 app.Run();
