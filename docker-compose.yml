@@ -41,9 +41,12 @@ services:
       PGADMIN_DEFAULT_PASSWORD: root
     ports:
       - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin        # <--- ДОБАВИЛИ ЭТУ СТРОКУ
     depends_on:
       postgres:
         condition: service_healthy
 
 volumes:
   postgres_data:
+  pgadmin_data:                              # <--- И ОБЪЯВИЛИ ТОМ ЗДЕСЬ
