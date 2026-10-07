@@ -1,16 +1,16 @@
 using System.Text;
+using ArchivioLessicale.API.Common.Extensions;
 using ArchivioLessicale.API.Features.Auth.Tokens;
+using ErrorOr;
 using FluentValidation;
-using ImTools;
 using JasperFx.CodeGeneration;
 using JasperFx.Resources;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
-using Npgsql;
+using Npgsql; // ← AnyAsync берётся отсюда
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.ErrorHandling;
@@ -34,7 +34,7 @@ public static class HostingExtensions
     public static (WebApplicationBuilder Builder, JwtOptions options) AddOptions(this WebApplicationBuilder builder)
     {
         var jwtOptions = builder.Configuration.GetSection("JwtOptions").Get<JwtOptions>()
-            ?? throw new InvalidOperationException("JwtOptions section not found in appsetting(Devolopment).json");
+            ?? throw new InvalidOperationException("JwtOptions section not found in appsettings(Devolopment).json");
 
         builder.Services.AddSingleton(jwtOptions);
 
@@ -51,6 +51,9 @@ public static class HostingExtensions
             options.Password.RequireNonAlphanumeric = true;
             options.Password.RequiredLength = 8;
             options.User.RequireUniqueEmail = true;
+            
+            options.User.AllowedUserNameCharacters = 
+                "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._@+";
         })
         .AddEntityFrameworkStores<ApplicationDbContext>()
         .AddDefaultTokenProviders();
@@ -78,7 +81,7 @@ public static class HostingExtensions
 
     public static WebApplicationBuilder AddFluentValidation(this WebApplicationBuilder builder)
     {
-        builder.Services.AddValidatorsFromAssemblyContaining<Program>();
+        builder.Services.AddValidatorsFromAssemblyContaining<Program>(ServiceLifetime.Singleton);
 
         return builder;
     }
@@ -93,6 +96,8 @@ public static class HostingExtensions
     public static WebApplicationBuilder AddWolverine(this WebApplicationBuilder builder)
     {
         var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+        
+        builder.Services.AddWolverineHttp();
 
         builder.Host.UseWolverine(options =>
         {
@@ -100,8 +105,12 @@ public static class HostingExtensions
 
             options.UseEntityFrameworkCoreTransactions();
             options.Policies.AutoApplyTransactions();
+            
+            
 
             options.UseFluentValidation();
+            
+            options.CodeGeneration.AlwaysUseServiceLocationFor<UserManager<ApplicationUser>>();
 
             options.Policies.OnException<NpgsqlException>()
                 .RetryWithCooldown(

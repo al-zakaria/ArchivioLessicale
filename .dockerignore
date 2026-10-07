@@ -1,0 +1,9 @@
+**/.git
+**/.vs
+**/.vscode
+**/bin
+**/obj
+**/*.user
+**/appsettings.Development.json
+Dockerfile
+README.md

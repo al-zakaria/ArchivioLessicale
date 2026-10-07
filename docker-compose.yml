@@ -1,0 +1,38 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: archivio-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ArchivioLessicaleDb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # ПРОВЕРКА ГОТОВНОСТИ БАЗЫ:
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ArchivioLessicaleDb"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: archivio-api-container
+    restart: on-failure
+    depends_on:
+      postgres:
+        # ЖДАТЬ ИМЕННО ГОТОВНОСТИ (HEALTHY), А НЕ ПРОСТО СТАРТА КОНТЕЙНЕРА!
+        condition: service_healthy
+    ports:
+      - "5000:8080"
+    environment:
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=ArchivioLessicaleDb;Username=postgres;Password=postgres
+      - ASPNETCORE_ENVIRONMENT=Development
+
+volumes:
+  postgres_data:

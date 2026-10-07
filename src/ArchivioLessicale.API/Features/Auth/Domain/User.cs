@@ -12,6 +12,7 @@ public class ApplicationUser : IdentityUser<Guid>
         {
             Id = Guid.NewGuid(),
             Email = email,
+            UserName = email
         };
     }
 

@@ -1,8 +1,8 @@
 using ArchivioLessicale.API.Common.Extensions;
 using ArchivioLessicale.API.Features.Auth.Tokens;
 using ErrorOr;
-using JasperFx.Events.Documents;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Wolverine;
 
 namespace ArchivioLessicale.API.Features.Auth.Register;
