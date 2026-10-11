@@ -9,8 +9,7 @@ public static class MapsterExtensions
     public static IssueAuthTokensRequest ToIssueAuthTokensRequest(
         this ApplicationUser user,
         Profile profile, 
-        ClientMetaData clientMetaData,
-        Guid? actualRefreshTokenId = null
+        ClientMetaData clientMetaData
     )
     {
         return user.Adapt<IssueAuthTokensRequest>() with
@@ -19,7 +18,6 @@ public static class MapsterExtensions
             DisplayName = profile.DisplayName,
             NickName = profile.NickName,
             ClientMetaData = clientMetaData, 
-            ActualRefreshTokenId = actualRefreshTokenId
         };
     }
 }

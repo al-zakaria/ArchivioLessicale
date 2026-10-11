@@ -1,4 +1,5 @@
 using ArchivioLessicale.API.Common.Extensions;
+using ArchivioLessicale.API.Features.Auth.Domain;
 using ArchivioLessicale.API.Features.Auth.Tokens;
 using ErrorOr;
 using Microsoft.AspNetCore.Identity;

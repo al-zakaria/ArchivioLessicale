@@ -43,6 +43,7 @@
       <Folder Include="Features\Auth\Domain\" />
       <Folder Include="Features\Auth\Login\" />
       <Folder Include="Features\Auth\Register\" />
+      <Folder Include="Features\Auth\Sessions\" />
       <Folder Include="Features\Auth\Tokens\" />
       <Folder Include="Features\Email\" />
     </ItemGroup>
