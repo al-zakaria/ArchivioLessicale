@@ -12,6 +12,7 @@
         <PackageReference Include="CSharpFunctionalExtensions" Version="3.7.0" />
         <PackageReference Include="ErrorOr" Version="2.1.1" />
         <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
+        <PackageReference Include="Google.Apis.Gmail.v1" Version="1.75.0.4225" />
         <PackageReference Include="Html2Text" Version="1.0.0" />
         <PackageReference Include="MailKit" Version="4.17.0" />
         <PackageReference Include="Mapster" Version="10.1.0-pre02" />
@@ -44,8 +45,6 @@
       <Folder Include="Features\Auth\Login\" />
       <Folder Include="Features\Auth\Register\" />
       <Folder Include="Features\Auth\Sessions\" />
-      <Folder Include="Features\Auth\Tokens\" />
-      <Folder Include="Features\Email\" />
     </ItemGroup>
 
 </Project>

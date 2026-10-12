@@ -1,14 +1,24 @@
 using System.Text;
+using ArchivioLessicale.API.Common.Contracts;
 using ArchivioLessicale.API.Common.Extensions;
+using ArchivioLessicale.API.Common.Links;
 using ArchivioLessicale.API.Features.Auth.Tokens;
+using ArchivioLessicale.API.Features.Email.Common;
+using ArchivioLessicale.API.Features.Email.Domain;
 using ErrorOr;
 using FluentValidation;
+using Google.Apis.Auth.OAuth2;
+using Google.Apis.Auth.OAuth2.Flows;
+using Google.Apis.Auth.OAuth2.Responses;
+using Google.Apis.Gmail.v1;
+using Google.Apis.Services;
 using JasperFx.CodeGeneration;
 using JasperFx.Resources;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Npgsql; // ← AnyAsync берётся отсюда
 using Wolverine;
@@ -18,6 +28,7 @@ using Wolverine.FluentValidation;
 using Wolverine.Http;
 using Wolverine.Http.FluentValidation;
 using Wolverine.Postgresql;
+using LinkOptions = Microsoft.AspNetCore.Routing.LinkOptions;
 
 namespace ArchivioLessicale.API.Common.Extensions;
 
@@ -35,8 +46,16 @@ public static class HostingExtensions
     {
         var jwtOptions = builder.Configuration.GetSection("JwtOptions").Get<JwtOptions>()
             ?? throw new InvalidOperationException("JwtOptions section not found in appsettings(Devolopment).json");
+        
+        var linkOptions =  builder.Configuration.GetSection("LinkOptions").Get<LinkOptions>()
+            ??  throw new InvalidOperationException("LinkOptions section not found in appsettings(Devolopment).json");
+        
+        var gmailOptions = builder.Configuration.GetSection("GmailOptions").Get<GmailOptions>()
+            ??  throw new InvalidOperationException("GmailOptions section not found in appsettings(Devolopment).json");
 
         builder.Services.AddSingleton(jwtOptions);
+        builder.Services.AddSingleton(gmailOptions);
+        builder.Services.AddSingleton(linkOptions);
 
         return (builder, jwtOptions);
     }
@@ -88,7 +107,29 @@ public static class HostingExtensions
 
     public static WebApplicationBuilder AddApplicationServices(this WebApplicationBuilder builder)
     {
+        builder.Services.AddSingleton<GmailService>(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<GmailOptions>>().Value;
+    
+            var flow = new GoogleAuthorizationCodeFlow(new GoogleAuthorizationCodeFlow.Initializer
+            {
+                ClientSecrets = new ClientSecrets { ClientId = options.ClientId, ClientSecret = options.ClientSecret },
+                Scopes = [GmailService.Scope.GmailSend]
+            });
+
+            var credential = new UserCredential(flow, "User", new TokenResponse { RefreshToken = options.RefreshToken });
+
+            return new GmailService(new BaseClientService.Initializer
+            {
+                HttpClientInitializer = credential,
+                ApplicationName = "ArchivioLessicale Inc.",
+            });
+        });
+        
         builder.Services.AddScoped<TokenProvider>();
+        builder.Services.AddScoped<UserActionsTokenProvider>();
+        builder.Services.AddScoped<LinkService>();
+        builder.Services.AddTransient<EmailService>();
 
         return builder;
     }
@@ -106,8 +147,6 @@ public static class HostingExtensions
             options.UseEntityFrameworkCoreTransactions();
             options.Policies.AutoApplyTransactions();
             
-            
-
             options.UseFluentValidation();
             
             options.CodeGeneration.AlwaysUseServiceLocationFor<UserManager<ApplicationUser>>();

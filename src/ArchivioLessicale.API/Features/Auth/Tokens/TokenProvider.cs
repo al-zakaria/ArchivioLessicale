@@ -2,7 +2,6 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using ArchivioLessicale.API.Features.Auth.Domain;
-using ArchivioLessicale.API.Features.Auth.RefreshTokens;
 using ErrorOr;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.JsonWebTokens;

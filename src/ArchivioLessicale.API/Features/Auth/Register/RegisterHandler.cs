@@ -1,3 +1,4 @@
+using ArchivioLessicale.API.Common.Contracts;
 using ArchivioLessicale.API.Common.Extensions;
 using ArchivioLessicale.API.Features.Auth.Domain;
 using ArchivioLessicale.API.Features.Auth.Tokens;
@@ -48,8 +49,7 @@ public static class RegisterHandler
             authResponse,
             new UserRegisteredEvent(
                 applicationUser.Id, 
-                applicationUser.Email!, 
-                profile.NickName, 
+                applicationUser.Email!,
                 profile.DisplayName
             )
         );

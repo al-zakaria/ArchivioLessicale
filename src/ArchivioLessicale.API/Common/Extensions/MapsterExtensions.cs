@@ -16,7 +16,6 @@ public static class MapsterExtensions
         {
             UserId = user.Id,
             DisplayName = profile.DisplayName,
-            NickName = profile.NickName,
             ClientMetaData = clientMetaData, 
         };
     }

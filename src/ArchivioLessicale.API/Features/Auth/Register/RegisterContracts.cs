@@ -14,13 +14,6 @@ public record RegisterUserCommand(
     ClientMetaData ClientMetaData
 );
 
-public record UserRegisteredEvent(
-    Guid UserId,
-    string Email,
-    string NickName,
-    string DisplayName
-);
-
 public class RegisterUserValidator : AbstractValidator<RegisterUserCommand>
 {
     public RegisterUserValidator()
