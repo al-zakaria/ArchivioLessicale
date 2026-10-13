@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.WebUtilities;
 
 namespace ArchivioLessicale.API.Common.Links;
 
-public class LinkService(LinkOptions linkOptions)
+public class LinkService(LinksOptions linkOptions)
 {
     private readonly string _baseAddress = linkOptions.BaseAddress;
     

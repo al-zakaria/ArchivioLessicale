@@ -2,11 +2,11 @@ using System.ComponentModel.DataAnnotations;
 
 namespace ArchivioLessicale.API.Common.Links;
 
-public class LinkOptions
+public class LinksOptions
 {
-    public const string SectionName  = "DeepLinks";
+    public const string SectionName  = "LinksOptions";
 
-    [Required(ErrorMessage = "DeepLinks:BaseAddress is required")]
-    [Url(ErrorMessage = "DeepLinks:BaseAddress is not valid")]
+    [Required(ErrorMessage = "LinksOptions:BaseAddress is required")]
+    [Url(ErrorMessage = "LinksOptions:BaseAddress is not valid")]
     public string BaseAddress { get; set; } = string.Empty;
 }

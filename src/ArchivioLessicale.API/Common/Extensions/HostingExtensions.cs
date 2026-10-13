@@ -47,8 +47,8 @@ public static class HostingExtensions
         var jwtOptions = builder.Configuration.GetSection("JwtOptions").Get<JwtOptions>()
             ?? throw new InvalidOperationException("JwtOptions section not found in appsettings(Devolopment).json");
         
-        var linkOptions =  builder.Configuration.GetSection("LinkOptions").Get<LinkOptions>()
-            ??  throw new InvalidOperationException("LinkOptions section not found in appsettings(Devolopment).json");
+        var linkOptions =  builder.Configuration.GetSection("LinksOptions").Get<LinksOptions>()
+                           ??  throw new InvalidOperationException("LinksOptions section not found in appsettings(Devolopment).json");
         
         var gmailOptions = builder.Configuration.GetSection("GmailOptions").Get<GmailOptions>()
             ??  throw new InvalidOperationException("GmailOptions section not found in appsettings(Devolopment).json");
